@@ -17,6 +17,7 @@ const SEED = [["你好","nǐ hǎo","bonjour"],["谢谢","xiè xie","merci"],["�
 const KEY = "zika-v1";
 const DAY = 864e5;
 let S;
+const APP_VERSION="2026-11-01 · 23:30"; // à changer à chaque mise à jour pour vérifier qu'elle est bien arrivée
 const DEFAULT_DECK="HSK 1 · départ";
 /* Chaque carte a un champ "mod" (date de dernière modification) et les cartes supprimées
    laissent une trace dans S.deleted : c'est ce qui permet de fusionner deux appareils (sync.js). */
@@ -311,7 +312,7 @@ function renderSettings(){
   view.innerHTML=`<div style="display:flex;flex-direction:column;gap:16px">
   <section class="panel"><h2>Apparence</h2>
     <div class="styles" role="radiogroup" aria-label="Style">
-      ${[["jade","Jade et nuages","Vert jade, motif de nuages 祥云"],["encre","Encre et papier","Papier de riz, encre et vermillon"],["cahier","Cahier d'écolier","Feuille quadrillée 田字格, encre bleue"]].map(([k,n,d])=>
+      ${[["jade","Jade et vagues","Vert jade, motif de vagues 海水纹"],["encre","Encre et papier","Papier de riz, encre et vermillon"],["cahier","Cahier d'écolier","Feuille quadrillée 田字格, encre bleue"]].map(([k,n,d])=>
         `<button class="style-opt" role="radio" aria-checked="${(st.style||"jade")===k}" data-style-opt="${k}" id="style-${k}"><span class="sw" data-sw="${k}"><b>字</b><i></i></span><span><b>${n}</b><small>${d}</small></span></button>`).join("")}
     </div>
     <label>Police des caractères<select id="s-font">
@@ -338,7 +339,8 @@ function renderSettings(){
       <div class="msg" id="bk-msg" style="flex:1 1 auto"></div>
       <button class="sbtn danger" id="reset">Tout réinitialiser</button>
     </div>
-  </section></div>`;
+  </section>
+  <div class="note" style="text-align:center">Version ${APP_VERSION}</div></div>`;
   $("#s-dir").value=st.dir;
   $("#s-font").value=st.hanfont||"song";
   $("#s-font").addEventListener("change",e=>{st.hanfont=e.target.value;saveSettings();applyLook()});
