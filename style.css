@@ -6,7 +6,7 @@
   --accent:#1d5c53; --accent-ink:#ffffff; --accent-soft:#d5e6e1;
   --t1:#c62f28; --t2:#c46a00; --t3:#2c8a3e; --t4:#2459b8; --t5:#7d8784;
   --again:#b2352d; --hard:#9a6a0e; --good:#1d5c53; --easy:#2459b8;
-  --seal:#b8342b; --seal-ink:#fff6f2; --motif:#1d5c53; --motif-op:.07; --daychar-op:.05;
+  --seal:#b8342b; --seal-ink:#fff6f2; --motif:#1d5c53; --motif-op:.07; --daychar-op:.18;
   --motif-img:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='140' viewBox='0 0 180 140' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M18 52c0-9 7-15 15-15 3-10 13-16 23-13 6-8 19-8 25 1 9-1 16 6 15 15 6 2 9 8 7 14H22c-4-1-5-1-4 2'/%3E%3Cpath d='M33 37c4 0 7 3 7 7s-3 6-6 5'/%3E%3Cpath d='M81 25c-5 2-7 8-4 12s9 3 10-1'/%3E%3Cpath d='M108 112c0-9 7-15 15-15 3-10 13-16 23-13 6-8 19-8 25 1'/%3E%3Cpath d='M123 97c4 0 7 3 7 7s-3 6-6 5'/%3E%3Cpath d='M104 124h68'/%3E%3C/svg%3E");
   --motif-size:180px 140px;
   --page-bg:none;
@@ -19,20 +19,20 @@
   --accent:#72c2b2; --accent-ink:#0d1a17; --accent-soft:#1f3531;
   --t1:#ff6b62; --t2:#f2a23a; --t3:#5fcf72; --t4:#6fa3ff; --t5:#8f9b98;
   --again:#ff6b62; --hard:#e0b04a; --good:#72c2b2; --easy:#6fa3ff;
-  --seal:#c4473b; --seal-ink:#1a0d0b; --motif:#72c2b2; --motif-op:.06; --daychar-op:.06; color-scheme:dark}}
+  --seal:#c4473b; --seal-ink:#1a0d0b; --motif:#72c2b2; --motif-op:.06; --daychar-op:.14; color-scheme:dark}}
 :root[data-theme="dark"]{
   --paper:#101614; --surface:#18201e; --ink:#e4ebe8; --muted:#94a39f; --line:#2b3734; --grid:#5a3a37;
   --accent:#72c2b2; --accent-ink:#0d1a17; --accent-soft:#1f3531;
   --t1:#ff6b62; --t2:#f2a23a; --t3:#5fcf72; --t4:#6fa3ff; --t5:#8f9b98;
   --again:#ff6b62; --hard:#e0b04a; --good:#72c2b2; --easy:#6fa3ff;
-  --seal:#c4473b; --seal-ink:#1a0d0b; --motif:#72c2b2; --motif-op:.06; --daychar-op:.06; color-scheme:dark}
+  --seal:#c4473b; --seal-ink:#1a0d0b; --motif:#72c2b2; --motif-op:.06; --daychar-op:.14; color-scheme:dark}
 
 /* — Encre et papier de riz — */
 :root[data-style="encre"]{
   --paper:#efe9dd; --surface:#faf6ee; --ink:#1d1a16; --muted:#6c6457; --line:#dcd2c1; --grid:#e0b2a6;
   --accent:#a92e25; --accent-ink:#fff8f3; --accent-soft:#f2dcd4;
   --good:#3c6a4b; --easy:#2f5a8a; --hard:#9a6a0e; --again:#a92e25;
-  --seal:#a92e25; --seal-ink:#fff8f3; --motif:#5a4630; --motif-op:.10; --daychar-op:.07;
+  --seal:#a92e25; --seal-ink:#fff8f3; --motif:#5a4630; --motif-op:.10; --daychar-op:.18;
   --motif-img:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.012 .35' numOctaves='3' seed='7'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1.4 -.55'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)'/%3E%3C/svg%3E");
   --motif-size:240px 240px;
   --f-han:"Noto Serif SC","Songti SC","SimSun",serif;
@@ -41,31 +41,31 @@
   --paper:#16130f; --surface:#1f1b16; --ink:#ece5d8; --muted:#a59b8b; --line:#362f27; --grid:#5d3730;
   --accent:#e0624f; --accent-ink:#1b0e0b; --accent-soft:#3b211c;
   --good:#79b48a; --easy:#7fa8d8; --hard:#d9ad55; --again:#e0624f;
-  --seal:#c94a3c; --seal-ink:#1b0e0b; --motif:#d8c7aa; --motif-op:.05; --daychar-op:.07}}
+  --seal:#c94a3c; --seal-ink:#1b0e0b; --motif:#d8c7aa; --motif-op:.05; --daychar-op:.14}}
 :root[data-style="encre"][data-theme="dark"]{
   --paper:#16130f; --surface:#1f1b16; --ink:#ece5d8; --muted:#a59b8b; --line:#362f27; --grid:#5d3730;
   --accent:#e0624f; --accent-ink:#1b0e0b; --accent-soft:#3b211c;
   --good:#79b48a; --easy:#7fa8d8; --hard:#d9ad55; --again:#e0624f;
-  --seal:#c94a3c; --seal-ink:#1b0e0b; --motif:#d8c7aa; --motif-op:.05; --daychar-op:.07}
+  --seal:#c94a3c; --seal-ink:#1b0e0b; --motif:#d8c7aa; --motif-op:.05; --daychar-op:.14}
 
 /* — Cahier d'écolier — */
 :root[data-style="cahier"]{
   --paper:#f8f9f4; --surface:#ffffff; --ink:#1c2333; --muted:#5b6476; --line:#d5dbe6; --grid:#e7aaa5;
   --accent:#2747a8; --accent-ink:#ffffff; --accent-soft:#dfe5f7;
   --good:#2c7a4a; --easy:#2747a8; --hard:#9a6a0e; --again:#c0392b;
-  --seal:#c0392b; --seal-ink:#ffffff; --motif-op:0; --daychar-op:0;
+  --seal:#c0392b; --seal-ink:#ffffff; --motif-op:0; --daychar-op:.16;
   --page-grid:#cfe3d2; --page-grid-2:#e6f0e7;
 }
 @media (prefers-color-scheme:dark){:root[data-style="cahier"]:not([data-theme="light"]){
   --paper:#11161f; --surface:#19202c; --ink:#e6eaf2; --muted:#98a2b5; --line:#2b3446; --grid:#55403f;
   --accent:#8ea8ff; --accent-ink:#0d1324; --accent-soft:#222d4a;
   --good:#6fcf97; --easy:#8ea8ff; --hard:#e0b04a; --again:#ff7468;
-  --seal:#d04a3c; --seal-ink:#11161f; --page-grid:#1f2b2a; --page-grid-2:#182120}}
+  --seal:#d04a3c; --seal-ink:#11161f; --page-grid:#1f2b2a; --page-grid-2:#182120; --daychar-op:.14}}
 :root[data-style="cahier"][data-theme="dark"]{
   --paper:#11161f; --surface:#19202c; --ink:#e6eaf2; --muted:#98a2b5; --line:#2b3446; --grid:#55403f;
   --accent:#8ea8ff; --accent-ink:#0d1324; --accent-soft:#222d4a;
   --good:#6fcf97; --easy:#8ea8ff; --hard:#e0b04a; --again:#ff7468;
-  --seal:#d04a3c; --seal-ink:#11161f; --page-grid:#1f2b2a; --page-grid-2:#182120}
+  --seal:#d04a3c; --seal-ink:#11161f; --page-grid:#1f2b2a; --page-grid-2:#182120; --daychar-op:.14}
 
 /* Police des caractères (Réglages → Apparence) */
 :root[data-hanfont="sans"]{--f-han:"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif}
