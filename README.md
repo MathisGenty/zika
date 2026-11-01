@@ -13,6 +13,9 @@ Elle fonctionne dans le navigateur, s'installe sur l'écran d'accueil du télép
 | `manifest.webmanifest` | Nom et icône quand on installe l'app sur un téléphone |
 | `sync.js` | Le compte et la synchronisation entre appareils (Supabase) |
 | `config.js` | L'adresse et la clé publique du projet Supabase |
+| `defis.js` | Les défis : Éclair, Tons, Survie et le défi du jour |
+| `social.js` | Les amis, la série de jours et le classement du défi du jour |
+| `supabase-amis.sql` | Le script qui crée les tables des amis et des scores (déjà exécuté) |
 | `sw.js` | Le mode hors connexion |
 | `icons/` | Les icônes |
 | `decks/` | La bibliothèque de paquets prêts à l'emploi (HSK 1 à 4) |
@@ -52,7 +55,7 @@ Quelques idées de modifications faciles :
 
 ### Configuration Supabase (déjà faite une fois)
 
-- La table `progress` et ses règles de sécurité ont été créées avec le script SQL fourni.
+- La table `progress` et ses règles de sécurité ont été créées avec le premier script SQL. Les tables `profiles`, `friendships` et `daily_scores` viennent de `supabase-amis.sql`.
 - Dans Authentication → Sign In / Providers → Email, l'option « Confirm email » est désactivée, car le service d'e-mail gratuit de Supabase n'envoie qu'aux membres de l'équipe.
 - `config.js` contient l'URL du projet et la clé **anon / publishable**, qui est publique. Ne jamais y mettre la clé `service_role` / `secret`.
 - Sur l'offre gratuite, un projet inactif pendant une semaine environ est mis en pause. On le réactive depuis le tableau de bord Supabase, sans perte de données.
@@ -68,3 +71,10 @@ Pour en ajouter un, crée par exemple `decks/mon-paquet.json` et ajoute une entr
 ```
 
 Les listes HSK 1 à 4 viennent de l'ancienne version du HSK (HSK 2.0, environ 1 200 mots au total), via le projet open source *complete-hsk-vocabulary* (données CC-CEDICT). Les sens en français ont été rédigés pour l'app.
+
+## Défis et amis
+
+- **Éclair**, **Tons** et **Survie** utilisent tes propres cartes. Les records sont synchronisés avec ton compte.
+- Le **défi du jour** pose 10 questions tirées de la liste HSK choisie. Le tirage dépend de la date et du niveau, donc tout le monde a les mêmes questions. On a un seul essai par jour.
+- **Amis** : chacun crée un profil (pseudo + avatar) dans l'onglet Défis, puis ajoute ses amis par leur pseudo exact. L'autre accepte la demande.
+- Tes amis voient seulement ton pseudo, ton avatar, ta série de jours et tes scores au défi du jour, jamais tes cartes.

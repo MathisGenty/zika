@@ -42,8 +42,11 @@
       const o = records[k] || { best:0, plays:0, last:0 };
       records[k] = { best: Math.max(o.best, r.best||0), plays: Math.max(o.plays, r.plays||0), last: Math.max(o.last||0, r.last||0) };
     }
+    const activity = [...new Set([...(R.activity||[]), ...(L.activity||[])])].sort().slice(-400);
+    const ld = L.daily, rd = R.daily;
+    const daily = !ld ? rd : !rd ? ld : ld.day !== rd.day ? (ld.day > rd.day ? ld : rd) : (ld.score >= rd.score ? ld : rd);
     return { cards, deleted: del, settings: lMod >= rMod ? L.settings : R.settings,
-             settingsMod: Math.max(lMod, rMod), newLog, records, owner: L.owner };
+             settingsMod: Math.max(lMod, rMod), newLog, records, activity, daily, owner: L.owner };
   }
 
   // JSON avec les clés triées : la base réordonne les clés, il faut comparer le contenu
@@ -178,14 +181,17 @@
     });
   }
   window.renderAccount = renderAccount;
+  // accès pour social.js
+  window.zika = { sb, enabled, user: () => user };
 
   /* ---------- Démarrage ---------- */
   if (enabled) {
     sb.auth.onAuthStateChange((event, session) => {
       const was = user?.id;
       user = session?.user || null;
-      if (!user) { setState("idle"); renderAccount(); return; }
+      if (!user) { setState("idle"); renderAccount(); if (was) window.dispatchEvent(new Event("zika-auth")); return; }
       if (user.id !== was) { renderAccount(); setTimeout(sync, 0); }
+      if (user.id !== was) window.dispatchEvent(new Event("zika-auth"));
     });
     document.addEventListener("visibilitychange", () => {
       if (!user) return;

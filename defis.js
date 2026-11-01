@@ -11,7 +11,9 @@
     tons:   { name:"Tons",   glyph:"声", n:15, time:10,
       desc:"Trouve le ton de la syllabe soulignée. 15 questions, 10 secondes chacune." },
     survie: { name:"Survie", glyph:"命", n:Infinity, time:10,
-      desc:"Questions à l'infini et 3 vies. Le temps raccourcit et le niveau monte." }
+      desc:"Questions à l'infini et 3 vies. Le temps raccourcit et le niveau monte." },
+    quotidien: { name:"Défi du jour", glyph:"日", n:10, time:8, hidden:true,
+      desc:"Les mêmes 10 questions pour tout le monde aujourd'hui. Un seul essai." }
   };
   const TONE_NAMES = ["", "1er ton", "2e ton", "3e ton", "4e ton", "neutre"];
 
@@ -20,9 +22,13 @@
   const later = (fn, ms) => timers.push(setTimeout(fn, ms));
 
   /* ---------- Outils ---------- */
-  const rnd = n => Math.floor(Math.random() * n);
+  // hasard : Math.random, ou un tirage « à graine » pour que le défi du jour soit identique pour tous
+  let RAND = Math.random;
+  const seeded = seed => () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  const hash = str => { let h = 2166136261; for (const ch of str) h = Math.imul(h ^ ch.codePointAt(0), 16777619); return h >>> 0; };
+  const rnd = n => Math.floor(RAND() * n);
   const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; };
-  const weighted = list => { let t = list.reduce((s, [, w]) => s + w, 0), r = Math.random() * t; for (const [v, w] of list) { if ((r -= w) < 0) return v; } return list[0][0]; };
+  const weighted = list => { let t = list.reduce((s, [, w]) => s + w, 0), r = RAND() * t; for (const [v, w] of list) { if ((r -= w) < 0) return v; } return list[0][0]; };
   const stripTone = s => s.normalize("NFD").replace(/[̀́̄̌]/g, "").normalize("NFC");
   const fmt = n => n.toLocaleString("fr-FR");
   const $d = id => document.getElementById(id);
@@ -42,7 +48,7 @@
   function distractors(card, pool, key, n = 3){
     const seen = new Set([key(card)]), out = [];
     const cands = pool.filter(x => x.id !== card.id && key(x))
-      .map(x => ({ x, s: (x.deck === card.deck ? 2 : 0) + ([...x.h].length === [...card.h].length ? 1 : 0) + Math.random() * 1.6 }))
+      .map(x => ({ x, s: (x.deck === card.deck ? 2 : 0) + ([...x.h].length === [...card.h].length ? 1 : 0) + RAND() * 1.6 }))
       .sort((a, b) => b.s - a.s);
     for (const { x } of cands) { const k = key(x); if (!seen.has(k)) { seen.add(k); out.push(x); if (out.length === n) break; } }
     return out.length === n ? out : null;
@@ -70,6 +76,7 @@
   }
 
   function buildQuestion(){
+    if (G.preset) return G.preset.questions[G.i] || null;
     let pool = G.pool;
     if (G.mode === "survie" && G.decks.length > 1) {
       const allowed = G.decks.slice(0, 1 + Math.floor(G.correct / 10));
@@ -87,11 +94,31 @@
     return null;
   }
 
+  /* ---------- Défi du jour : 10 questions tirées à partir de la date et du niveau ---------- */
+  const dailyCache = {};
+  async function dailyQuestions(level, day){
+    const key = level + "|" + day;
+    if (dailyCache[key]) return dailyCache[key];
+    const data = await (await fetch(`decks/hsk${level}.json`, { cache: "no-cache" })).json();
+    const pool = data.map(([h, p, m], i) => ({ id: `d${level}-${i}`, h, p, m, deck: `HSK ${level}` }));
+    RAND = seeded(hash("zika-" + day + "-hsk" + level));
+    try {
+      const order = shuffle(pool.slice()), qs = [];
+      for (const card of order) {
+        const kind = weighted([["h2m", 3], ["m2h", 2], ["h2p", 2], ["tone", 2]]);
+        const q = kind === "tone" ? toneQ(card) : choiceQ(card, pool, kind);
+        if (q) qs.push(q);
+        if (qs.length === 10) break;
+      }
+      return (dailyCache[key] = qs);
+    } finally { RAND = Math.random; }
+  }
+
   /* ---------- Déroulement d'une partie ---------- */
-  function start(mode){
-    const pool = sourcePool();
+  function start(mode, preset){
+    const pool = preset ? [] : sourcePool();
     G = { mode, pool, decks: poolDecks(pool), used: new Set(), i: 0, score: 0, combo: 0, bestCombo: 0,
-          correct: 0, lives: 3, wrong: [], level: 1, q: null, answered: false };
+          correct: 0, lives: 3, wrong: [], level: 1, q: null, answered: false, preset };
     ask();
   }
 
@@ -101,7 +128,7 @@
   }
 
   function ask(){
-    if (G.mode !== "survie" && G.i >= MODES[G.mode].n) return finish();
+    if (G.mode !== "survie" && G.i >= (G.preset ? G.preset.questions.length : MODES[G.mode].n)) return finish();
     if (G.mode === "survie" && G.lives <= 0) return finish();
     G.q = buildQuestion();
     if (!G.q) { G.error = "Pas assez de cartes différentes pour créer des questions. Ajoute des cartes ou choisis une autre source."; return finish(); }
@@ -162,11 +189,16 @@
     const R = records(), r = (R[G.mode] ??= { best: 0, plays: 0 });
     let isRecord = false;
     if (!G.error) {
-      r.plays++; if (G.score > r.best) { r.best = G.score; isRecord = G.score > 0; }
-      r.last = Date.now();
-      // les mots ratés reviennent tout de suite en révision
+      if (G.mode !== "quotidien") {
+        r.plays++; if (G.score > r.best) { r.best = G.score; isRecord = G.score > 0; }
+        r.last = Date.now();
+      }
+      // les mots ratés reviennent tout de suite en révision (s'ils sont dans tes cartes)
       const now = Date.now();
-      for (const c of G.wrong) if (!c.isNew) { c.due = Math.min(c.due, now); c.mod = now; }
+      G.back = 0;
+      for (const w of G.wrong) for (const c of S.cards) if (c.h === w.h && !c.isNew) { c.due = Math.min(c.due, now); c.mod = now; G.back++; }
+      markActive();
+      G.preset?.onFinish?.(G);
       save();
     }
     G.done = true; G.isRecord = isRecord;
@@ -200,13 +232,13 @@
     const view = document.getElementById("view"), m = MODES[G.mode];
     if (G.done) {
       const r = records()[G.mode] || { best: 0 };
-      const back = G.wrong.filter(c => !c.isNew).length;
+      const back = G.back || 0, daily = G.mode === "quotidien";
       view.innerHTML = G.error ? `<div class="card"><div class="done"><div class="note">${esc(G.error)}</div><button class="sbtn accent" id="g-home">Retour aux défis</button></div></div>` : `
         <div class="card end">
           <div class="seal">${m.glyph}</div>
           <div class="qlabel">${m.name} · terminé</div>
           <div class="end-score">${fmt(G.score)}</div>
-          <div class="end-rec">${G.isRecord ? "Nouveau record !" : `Record : ${fmt(r.best)}`}</div>
+          <div class="end-rec">${daily ? `HSK ${G.preset.level} · <span id="daily-send">${G.preset.status || ""}</span>` : G.isRecord ? "Nouveau record !" : `Record : ${fmt(r.best)}`}</div>
           <div class="end-stats">
             <div><b>${G.correct}</b> bonne${G.correct > 1 ? "s" : ""} réponse${G.correct > 1 ? "s" : ""}${G.mode !== "survie" ? ` sur ${G.i}` : ""}</div>
             <div><b>${G.bestCombo}</b> de suite au mieux</div>
@@ -216,8 +248,8 @@
             `<div class="miss"><span class="fb-h">${esc(c.h)}</span><span>${pinyinHTML(c.p)}</span><span class="note">${esc(c.m)}</span></div>`).join("")}
             ${back ? `<div class="note">${back} mot${back > 1 ? "s" : ""} déjà étudié${back > 1 ? "s" : ""} revien${back > 1 ? "nent" : "t"} dès maintenant dans ta révision.</div>` : ""}</div>` : ""}
           <div class="row" style="justify-content:center">
-            <button class="sbtn" id="g-home">Autres défis</button>
-            <button class="sbtn accent" id="g-again">Rejouer <kbd>Entrée</kbd></button>
+            ${daily ? `<button class="sbtn accent" id="g-home">Voir le classement</button>` : `<button class="sbtn" id="g-home">Autres défis</button>
+            <button class="sbtn accent" id="g-again">Rejouer <kbd>Entrée</kbd></button>`}
           </div>
         </div>`;
       $d("g-home").addEventListener("click", () => { G = null; renderDefis(); });
@@ -229,7 +261,7 @@
       <div class="game">
         <div class="ghead">
           <span class="gmode"><span class="glyph">${m.glyph}</span>${m.name}</span>
-          <span id="g-prog">${G.mode === "survie" ? livesHTML() : `${G.i} / ${m.n}`}</span>
+          <span id="g-prog">${G.mode === "survie" ? livesHTML() : `${G.i} / ${G.preset ? G.preset.questions.length : m.n}`}</span>
           <span class="gright"><span id="g-combo" class="gcombo">${G.combo >= 2 ? `série ${G.combo}` : ""}</span><b id="g-score">${fmt(G.score)}</b></span>
         </div>
         <div class="timer"><i id="tbar"></i></div>
@@ -253,6 +285,7 @@
     const enough = pool.length >= 4;
     view.innerHTML = `
       <div style="display:flex;flex-direction:column;gap:16px">
+      <section class="panel" id="daily"></section>
       <section class="panel">
         <h2>Défis</h2>
         <div class="row" style="align-items:end">
@@ -266,7 +299,7 @@
         <div class="note">${enough ? `${fmt(pool.length)} cartes en jeu.` : "Il faut au moins 4 cartes pour jouer. Choisis une autre source ou ajoute des cartes."}</div>
       </section>
       <div class="modes">
-        ${Object.entries(MODES).map(([k, m]) => {
+        ${Object.entries(MODES).filter(([, m]) => !m.hidden).map(([k, m]) => {
           const r = R[k], dis = !enough || (k === "tons" && !toneable);
           return `<button class="mode" data-mode="${k}" id="mode-${k}" ${dis ? "disabled" : ""}>
             <span class="glyph">${m.glyph}</span>
@@ -275,21 +308,24 @@
           </button>`; }).join("")}
       </div>
       <div class="note" style="text-align:center">Les mots ratés pendant un défi reviennent dans ta révision.</div>
+      <section class="panel" id="friends"></section>
       </div>`;
     $d("d-deck").addEventListener("change", e => { st.defiDeck = e.target.value; saveSettings(); renderDefis(); });
     $d("d-seen").addEventListener("change", e => { st.defiSeen = e.target.checked; saveSettings(); renderDefis(); });
     view.querySelectorAll(".mode").forEach(b => b.addEventListener("click", () => start(b.dataset.mode)));
+    window.renderSocial?.();
   }
 
   /* ---------- Clavier ---------- */
   document.addEventListener("keydown", e => {
     if (tab !== "defis" || !G || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
-    if (G.done) { if (e.key === "Enter" && !G.error) { e.preventDefault(); start(G.mode); } return; }
+    if (G.done) { if (e.key === "Enter" && !G.error && G.mode !== "quotidien") { e.preventDefault(); start(G.mode); } return; }
     const n = parseInt(e.key, 10);
     if (!G.answered && n >= 1 && n <= G.q.opts.length) { e.preventDefault(); answer(n - 1); }
     else if (G.answered && (e.key === "Enter" || e.code === "Space")) { e.preventDefault(); next(); }
   });
 
   window.renderDefis = renderDefis;
+  window.zikaDefi = { start, dailyQuestions, isPlaying: () => !!G && !G.done };
   window.stopDefi = () => { if (G) { cancelAnimationFrame(G.raf); timers.forEach(clearTimeout); timers = []; G = null; } };
 })();

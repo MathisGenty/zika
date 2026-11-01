@@ -27,7 +27,7 @@ function fresh(){
 function mk(h,p,m,deck,id){return {id:id||Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,7),h,p,m,deck:deck||"Mes cartes",due:0,ivl:0,ease:2.5,reps:0,lapses:0,isNew:true,mod:Date.now()}}
 function migrate(){ // met à niveau les anciennes sauvegardes
   S.settings??={dir:"h2f",newPerDay:10,tones:true}; S.settings.active??=[]; S.newLog??={date:"",n:0};
-  S.deleted??={}; S.settingsMod??=0; S.records??={};
+  S.deleted??={}; S.settingsMod??=0; S.records??={}; S.activity??=[];
   for(const c of S.cards){c.deck??=DEFAULT_DECK; c.mod??=0}
 }
 function load(){try{const r=localStorage.getItem(KEY); S=r?JSON.parse(r):fresh();}catch(e){S=fresh()} migrate()}
@@ -74,7 +74,20 @@ function schedule(c,g,dry){ // g: 0 à revoir, 1 difficile, 2 bien, 3 facile
   return n;
 }
 function label(c,g){const n=schedule(c,g,true); if(g===0) return "10 min"; const d=n.ivl; return d<31?d+" j":d<365?Math.round(d/30)+" mois":(d/365).toFixed(1)+" an"}
-const today=()=>new Date().toISOString().slice(0,10);
+// date du jour dans le fuseau de l'appareil (AAAA-MM-JJ)
+const dayKey=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+const today=()=>dayKey(new Date());
+/* ---------- Série de jours : un jour compte dès qu'on révise une carte ou qu'on joue un défi ---------- */
+function markActive(){
+  const t=today(); if(S.activity.includes(t)) return;
+  S.activity=[...S.activity,t].sort().slice(-400); window.onActivity?.();
+}
+function streak(){
+  const set=new Set(S.activity), d=new Date(); let n=0;
+  if(!set.has(dayKey(d))) d.setDate(d.getDate()-1); // la série tient encore si on a joué hier
+  while(set.has(dayKey(d))){n++; d.setDate(d.getDate()-1)}
+  return n;
+}
 function newLeft(){ if(S.newLog.date!==today()) S.newLog={date:today(),n:0}; return Math.max(0,S.settings.newPerDay-S.newLog.n) }
 /* ---------- Paquets ---------- */
 function decks(){return [...new Set(S.cards.map(c=>c.deck))]} // dans l'ordre d'ajout
@@ -102,7 +115,7 @@ let tab="review", queue=[], flipped=false, curDir="h2f";
 function renderStats(){
   const now=Date.now(), P=pool(), due=P.filter(c=>!c.isNew&&c.due<=now).length, nw=Math.min(P.filter(c=>c.isNew).length,newLeft());
   const learned=P.filter(c=>c.ivl>=21).length;
-  $("#stats").innerHTML=`<div><b>${due}</b>à réviser</div><div><b>${nw}</b>nouvelles aujourd'hui</div><div><b>${learned}</b>acquises (≥ 21 j)</div><div><b>${P.length}</b>cartes${activeDecks().length?" sélectionnées":""}</div>`;
+  $("#stats").innerHTML=`<div><b>${due}</b>à réviser</div><div><b>${nw}</b>nouvelles aujourd'hui</div><div><b>${learned}</b>acquises (≥ 21 j)</div><div><b>${P.length}</b>cartes${activeDecks().length?" sélectionnées":""}</div>${streak()?`<div class="streak"><b>${streak()}</b>jour${streak()>1?"s":""} de suite</div>`:""}`;
 }
 function setTab(t){if(tab==="defis"&&t!=="defis") window.stopDefi?.(); tab=t; for(const k of ["review","defis","cards","settings"]) $("#tab-"+k).setAttribute("aria-current",k===t); if(t==="review"){queue=buildQueue();flipped=false;pickDir()} render()}
 function pickDir(){const d=S.settings.dir; curDir=d==="mix"?(Math.random()<.5?"h2f":"f2h"):d}
@@ -183,7 +196,7 @@ function flip(){flipped=true; renderReview(); if(curDir==="f2h"){const c=S.cards
 function answer(g){
   const c=S.cards.find(x=>x.id===queue[0]); if(!c) return;
   if(c.isNew){newLeft(); S.newLog.n++}
-  schedule(c,g); queue.shift(); if(g===0) queue.push(c.id);
+  markActive(); schedule(c,g); queue.shift(); if(g===0) queue.push(c.id);
   save(); flipped=false; pickDir(); render();
 }
 

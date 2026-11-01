@@ -3,7 +3,7 @@
 // version publiée ; hors ligne, l'app utilise la copie gardée en cache.
 // Pas besoin de changer de numéro de version à chaque modif.
 
-const CACHE = "zika-cache-v4";
+const CACHE = "zika-cache-v5";
 const SHELL = [
   "./",
   "index.html",
@@ -11,6 +11,7 @@ const SHELL = [
   "app.js",
   "sync.js",
   "defis.js",
+  "social.js",
   "config.js",
   "manifest.webmanifest",
   "icons/icon-192.png",
