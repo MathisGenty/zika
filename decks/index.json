@@ -1,0 +1,26 @@
+[
+ {
+  "file": "hsk1.json",
+  "name": "HSK 1",
+  "count": 150,
+  "description": "Les mots de base : saluer, se présenter, compter, les objets du quotidien."
+ },
+ {
+  "file": "hsk2.json",
+  "name": "HSK 2",
+  "count": 147,
+  "description": "Couleurs, transports, sentiments, comparaisons simples."
+ },
+ {
+  "file": "hsk3.json",
+  "name": "HSK 3",
+  "count": 298,
+  "description": "La vie quotidienne, les études, le travail, les voyages."
+ },
+ {
+  "file": "hsk4.json",
+  "name": "HSK 4",
+  "count": 598,
+  "description": "Exprimer un avis, raconter, parler de sujets plus variés."
+ }
+]

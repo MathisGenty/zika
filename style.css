@@ -102,3 +102,22 @@ label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--mute
 .del{border:0;background:none;color:var(--muted);font-size:12px;padding:2px 4px}
 .del.armed{color:var(--again);font-weight:700}
 @media (prefers-reduced-motion:no-preference){.card{transition:transform .15s}.card.flip{animation:pop .18s ease-out}@keyframes pop{from{transform:scale(.985)}to{transform:none}}}
+
+/* Paquets */
+.decks{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 12px;font-size:13px;font-weight:600;color:var(--muted);display:inline-flex;gap:8px;align-items:baseline}
+.chip small{font-family:var(--f-mono);font-size:11px;font-weight:500;opacity:.8}
+.chip[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--ink)}
+.chip:hover{border-color:var(--muted)}
+.dir{right:110px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.actions{margin-top:10px}
+.hint{margin-top:8px}
+
+/* Bibliothèque */
+.lib{display:flex;flex-direction:column}
+.lib-item{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid var(--line)}
+.lib-item:first-child{border-top:0;padding-top:0}
+.lib-item .m{min-width:0}
+.lib-n{font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+.lib-ok{font-size:13px;color:var(--accent);font-weight:600;flex:0 0 auto}
+.sbtn:disabled{opacity:.6;cursor:default}
