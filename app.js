@@ -1,0 +1,235 @@
+/* =====================================================================
+   Zìkǎ 字卡 — logique de l'app
+   Plan du fichier :
+     1. Données de départ (paquet HSK 1)
+     2. Stockage (localStorage, clé "zika-v1")
+     3. Pinyin : tons, conversion ni3 -> nǐ
+     4. Répétition espacée : schedule() — c'est ici qu'on règle les intervalles
+     5. Audio (synthèse vocale du navigateur)
+     6. Vues : renderReview / renderCards / renderSettings
+     7. Raccourcis clavier et démarrage
+   ===================================================================== */
+
+/* ---------- Données de départ (HSK 1, exemples modifiables) ---------- */
+const SEED = [["你好","nǐ hǎo","bonjour"],["谢谢","xiè xie","merci"],["我","wǒ","je, moi"],["你","nǐ","tu, toi"],["他","tā","il, lui"],["她","tā","elle"],["是","shì","être (c'est)"],["不","bù","ne… pas"],["好","hǎo","bon, bien"],["人","rén","personne, être humain"],["大","dà","grand"],["小","xiǎo","petit"],["中国","Zhōng guó","Chine"],["学习","xué xí","étudier"],["老师","lǎo shī","professeur"],["学生","xué sheng","élève, étudiant"],["吃","chī","manger"],["喝","hē","boire"],["水","shuǐ","eau"],["茶","chá","thé"],["米饭","mǐ fàn","riz cuit"],["朋友","péng you","ami"],["家","jiā","maison, famille"],["爱","ài","aimer"],["看","kàn","regarder, lire"],["说","shuō","parler, dire"],["今天","jīn tiān","aujourd'hui"],["明天","míng tiān","demain"],["猫","māo","chat"],["狗","gǒu","chien"],["书","shū","livre"],["多少","duō shao","combien"]];
+
+/* ---------- Stockage ---------- */
+const KEY = "zika-v1";
+const DAY = 864e5;
+let S;
+function fresh(){
+  return {cards: SEED.map((c,i)=>mk(c[0],c[1],c[2],i)), settings:{dir:"h2f", newPerDay:10, tones:true}, newLog:{date:"",n:0}};
+}
+function mk(h,p,m,i){return {id:Date.now().toString(36)+"-"+(i??Math.random().toString(36).slice(2,7)),h,p,m,due:0,ivl:0,ease:2.5,reps:0,lapses:0,isNew:true}}
+function load(){try{const r=localStorage.getItem(KEY); S=r?JSON.parse(r):fresh();}catch(e){S=fresh()} }
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){} }
+load();
+
+/* ---------- Pinyin : tons ---------- */
+const TM={1:"āēīōūǖĀĒĪŌŪǕ",2:"áéíóúǘÁÉÍÓÚǗ",3:"ǎěǐǒǔǚǍĚǏǑǓǙ",4:"àèìòùǜÀÈÌÒÙǛ"};
+function toneOf(syl){for(const ch of syl)for(const k in TM)if(TM[k].includes(ch))return +k;return 5}
+function numToMark(syl){ // ni3 -> nǐ, lv4 -> lǜ
+  const m=syl.match(/^([a-zA-Zü:v]+)([1-5])$/); if(!m) return syl;
+  let s=m[1].replace(/u:|v/g,"ü").replace(/U:|V/g,"Ü"); const t=+m[2]; if(t===5) return s;
+  const marks={a:"āáǎà",e:"ēéěè",i:"īíǐì",o:"ōóǒò",u:"ūúǔù","ü":"ǖǘǚǜ"};
+  const low=s.toLowerCase(); let idx=low.indexOf("a"); if(idx<0) idx=low.indexOf("e"); if(idx<0) idx=low.indexOf("ou");
+  if(idx<0) for(let i=low.length-1;i>=0;i--) if("iouü".includes(low[i])){idx=i;break}
+  if(idx<0) return s;
+  let r=marks[low[idx]][t-1]; if(s[idx]!==low[idx]) r=r.toUpperCase();
+  return s.slice(0,idx)+r+s.slice(idx+1);
+}
+function normPinyin(p){return p.replace(/([a-zA-Zü:v]+)([1-5])/g,m=>numToMark(m)+" ").replace(/\s+/g," ").trim()}
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function sylls(p){return p.split(/[\s']+/).filter(Boolean)}
+function pinyinHTML(p){return sylls(p).map(s=>`<span class="tone${toneOf(s)}">${esc(s)}</span>`).join(" ")}
+function hanziHTML(h,p,colored,cls=""){
+  const chars=[...h], sy=sylls(p), match=sy.length===chars.length;
+  return `<div class="hanzi ${cls}">`+chars.map((c,i)=>`<div class="cell"><span class="${colored&&match?"tone"+toneOf(sy[i]):""}">${esc(c)}</span></div>`).join("")+`</div>`;
+}
+
+/* ---------- Répétition espacée (SM-2 simplifié) ---------- */
+function schedule(c,g,dry){ // g: 0 à revoir, 1 difficile, 2 bien, 3 facile
+  const n={...c}, now=Date.now();
+  if(g===0){n.lapses++;n.reps=0;n.ivl=0;n.ease=Math.max(1.3,n.ease-.2);n.due=now+10*60e3}
+  else{
+    if(n.reps===0) n.ivl=g===3?4:1;
+    else if(n.reps===1) n.ivl=g===1?2:g===2?3:7;
+    else n.ivl=Math.max(n.ivl+1,Math.round(n.ivl*(g===1?1.2:g===2?n.ease:n.ease*1.3)));
+    n.ease=Math.max(1.3,n.ease+(g===1?-.15:g===3?.15:0));
+    n.reps++; n.due=now+n.ivl*DAY;
+  }
+  n.isNew=false;
+  if(!dry) Object.assign(c,n);
+  return n;
+}
+function label(c,g){const n=schedule(c,g,true); if(g===0) return "10 min"; const d=n.ivl; return d<31?d+" j":d<365?Math.round(d/30)+" mois":(d/365).toFixed(1)+" an"}
+const today=()=>new Date().toISOString().slice(0,10);
+function newLeft(){ if(S.newLog.date!==today()) S.newLog={date:today(),n:0}; return Math.max(0,S.settings.newPerDay-S.newLog.n) }
+function buildQueue(){
+  const now=Date.now();
+  const due=S.cards.filter(c=>!c.isNew&&c.due<=now).sort((a,b)=>a.due-b.due);
+  const nw=S.cards.filter(c=>c.isNew).slice(0,newLeft());
+  return [...due,...nw].map(c=>c.id);
+}
+
+/* ---------- Audio ---------- */
+let zhVoice=null;
+function pickVoice(){ if(!("speechSynthesis" in window)) return; const v=speechSynthesis.getVoices(); zhVoice=v.find(x=>/^zh[-_]CN/i.test(x.lang))||v.find(x=>/^zh/i.test(x.lang))||null }
+if("speechSynthesis" in window){pickVoice(); speechSynthesis.onvoiceschanged=pickVoice}
+function speak(t){ if(!("speechSynthesis" in window)) return; speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(t); u.lang="zh-CN"; if(zhVoice) u.voice=zhVoice; u.rate=.8; speechSynthesis.speak(u) }
+
+/* ---------- Vues ---------- */
+const $=s=>document.querySelector(s), view=$("#view");
+let tab="review", queue=[], flipped=false, curDir="h2f";
+
+function renderStats(){
+  const now=Date.now(), due=S.cards.filter(c=>!c.isNew&&c.due<=now).length, nw=Math.min(S.cards.filter(c=>c.isNew).length,newLeft());
+  const learned=S.cards.filter(c=>c.ivl>=21).length;
+  $("#stats").innerHTML=`<div><b>${due}</b>à réviser</div><div><b>${nw}</b>nouvelles aujourd'hui</div><div><b>${learned}</b>acquises (≥ 21 j)</div><div><b>${S.cards.length}</b>cartes</div>`;
+}
+function setTab(t){tab=t; for(const k of ["review","cards","settings"]) $("#tab-"+k).setAttribute("aria-current",k===t); if(t==="review"){queue=buildQueue();flipped=false;pickDir()} render()}
+function pickDir(){const d=S.settings.dir; curDir=d==="mix"?(Math.random()<.5?"h2f":"f2h"):d}
+
+function render(){renderStats(); ({review:renderReview,cards:renderCards,settings:renderSettings})[tab]()}
+
+function renderReview(){
+  const c=S.cards.find(x=>x.id===queue[0]);
+  if(!c){
+    const next=S.cards.filter(x=>!x.isNew).sort((a,b)=>a.due-b.due)[0];
+    const when=next?new Date(next.due).toLocaleString("fr-FR",{weekday:"long",hour:"2-digit",minute:"2-digit"}):null;
+    view.innerHTML=`<div class="card"><div class="done"><div class="big">完了</div><div><b>wán le</b> — c'est fini pour aujourd'hui.</div>
+      <div class="note">${when?"Prochaine révision : "+when+".":""} ${S.cards.some(x=>x.isNew)&&!newLeft()?"Limite de nouvelles cartes atteinte (modifiable dans Réglages).":""}</div></div></div>`;
+    return;
+  }
+  const col=S.settings.tones, f2h=curDir==="f2h";
+  let front, back="";
+  if(!f2h){
+    front=hanziHTML(c.h,c.p,flipped&&col);
+    if(flipped) back=`<div class="pinyin ${col?"":"mono"}">${pinyinHTML(c.p)}</div><div class="meaning">${esc(c.m)}</div>`;
+  } else {
+    front=`<div class="meaning big">${esc(c.m)}</div>`;
+    if(flipped) back=hanziHTML(c.h,c.p,col)+`<div class="pinyin ${col?"":"mono"}">${pinyinHTML(c.p)}</div>`;
+  }
+  const tag=c.isNew?"Nouvelle":c.lapses?`Révision · ${c.lapses} oubli${c.lapses>1?"s":""}`:"Révision";
+  view.innerHTML=`
+    <div class="card ${flipped?"flip":""}">
+      <div class="dir">${f2h?"Français → 汉字":"汉字 → Français"} · ${tag}</div>
+      ${(flipped||!f2h)?`<button class="speak" id="speak" title="Écouter (touche A)">🔊 Écouter</button>`:""}
+      ${front}${back}
+    </div>
+    ${flipped?`<div class="actions">
+      ${["À revoir","Difficile","Bien","Facile"].map((l,g)=>`<button class="btn g${g}" id="g${g}">${l}<small>${label(c,g)} · <kbd>${g+1}</kbd></small></button>`).join("")}
+    </div>`:`<div class="actions one"><button class="btn primary" id="flip">Afficher la réponse <kbd>Espace</kbd></button></div>`}
+    <div class="hint">${queue.length} carte${queue.length>1?"s":""} restante${queue.length>1?"s":""} dans cette session</div>`;
+  $("#flip")?.addEventListener("click",flip);
+  $("#speak")?.addEventListener("click",()=>speak(c.h));
+  for(let g=0;g<4;g++) $("#g"+g)?.addEventListener("click",()=>answer(g));
+}
+function flip(){flipped=true; renderReview(); if(curDir==="f2h"){const c=S.cards.find(x=>x.id===queue[0]); if(c&&S.settings.autoplay) speak(c.h)}}
+function answer(g){
+  const c=S.cards.find(x=>x.id===queue[0]); if(!c) return;
+  if(c.isNew){newLeft(); S.newLog.n++}
+  schedule(c,g); queue.shift(); if(g===0) queue.push(c.id);
+  save(); flipped=false; pickDir(); render();
+}
+
+function renderCards(){
+  view.innerHTML=`
+  <div style="display:flex;flex-direction:column;gap:16px">
+  <section class="panel">
+    <h2>Ajouter une carte</h2>
+    <div class="row">
+      <label>汉字<input type="text" id="in-h" placeholder="你好" lang="zh"></label>
+      <label>Pinyin<input type="text" id="in-p" placeholder="ni3 hao3 ou nǐ hǎo"></label>
+      <label>Sens<input type="text" id="in-m" placeholder="bonjour"></label>
+    </div>
+    <div class="row" style="align-items:center"><div class="preview" id="pv"></div><button class="sbtn accent" id="add">Ajouter</button></div>
+    <div class="msg" id="add-msg"></div>
+  </section>
+  <section class="panel">
+    <h2>Importer une liste</h2>
+    <div class="note">Une carte par ligne : <code>汉字 ; pinyin ; sens</code>. Séparateurs acceptés : point-virgule, tabulation (copier-coller depuis un tableur) ou virgule. Le pinyin peut s'écrire avec des chiffres (<code>xue2 xi2</code>).</div>
+    <textarea id="imp" placeholder="书包;shu1 bao1;cartable&#10;咖啡;kā fēi;café"></textarea>
+    <div class="row" style="align-items:center"><div class="msg" id="imp-msg"></div><button class="sbtn accent" id="imp-go">Importer</button></div>
+  </section>
+  <section class="panel">
+    <div class="row" style="align-items:center"><h2 style="flex:1 1 auto">Mes cartes (${S.cards.length})</h2><input type="text" id="q" placeholder="Rechercher…" style="flex:0 1 220px"></div>
+    <div class="list" id="list"></div>
+  </section></div>`;
+  const pv=()=>{const p=normPinyin($("#in-p").value); $("#pv").innerHTML=p?`Pinyin enregistré : <b>${pinyinHTML(p)}</b>`:""};
+  $("#in-p").addEventListener("input",pv);
+  $("#add").addEventListener("click",()=>{
+    const h=$("#in-h").value.trim(), p=normPinyin($("#in-p").value), m=$("#in-m").value.trim();
+    if(!h||!m){$("#add-msg").textContent="Il faut au moins les caractères et le sens."; return}
+    if(S.cards.some(c=>c.h===h)){$("#add-msg").textContent=`« ${h} » est déjà dans tes cartes.`; return}
+    S.cards.push(mk(h,p,m)); save(); renderCards(); $("#add-msg").textContent=`« ${h} » ajouté.`; renderStats(); $("#in-h").focus();
+  });
+  $("#imp-go").addEventListener("click",()=>{
+    let added=0, skip=0;
+    for(const line of $("#imp").value.split(/\n/)){
+      if(!line.trim()) continue;
+      const sep=line.includes("\t")?"\t":line.includes(";")?";":",";
+      const [h,p="",...rest]=line.split(sep).map(s=>s.trim()); const m=rest.join(sep===","?", ":sep).trim();
+      if(!h||!m||S.cards.some(c=>c.h===h)){skip++;continue}
+      S.cards.push(mk(h,normPinyin(p),m)); added++;
+    }
+    save(); renderCards(); $("#imp-msg").textContent=`${added} carte${added>1?"s":""} importée${added>1?"s":""}${skip?`, ${skip} ignorée${skip>1?"s":""} (doublon ou ligne incomplète)`:""}.`; renderStats();
+  });
+  $("#q").addEventListener("input",drawList);
+  drawList();
+}
+function drawList(){
+  const q=($("#q")?.value||"").toLowerCase().trim(), now=Date.now();
+  const items=S.cards.filter(c=>!q||(c.h+c.p+c.m).toLowerCase().includes(q)).slice().reverse();
+  $("#list").innerHTML=items.map(c=>{
+    const st=c.isNew?"nouvelle":c.due<=now?"à réviser":"dans "+Math.max(1,Math.round((c.due-now)/DAY))+" j";
+    return `<div class="item"><div class="h">${esc(c.h)}</div><div class="m"><div>${pinyinHTML(c.p)}</div><div>${esc(c.m)}</div></div>
+      <div class="due">${st}<button class="del" data-id="${c.id}">Supprimer</button></div></div>`}).join("")||`<div class="note">Aucune carte ne correspond.</div>`;
+  $("#list").querySelectorAll(".del").forEach(b=>b.addEventListener("click",()=>{
+    if(!b.classList.contains("armed")){b.classList.add("armed");b.textContent="Confirmer ?";setTimeout(()=>{b.classList.remove("armed");b.textContent="Supprimer"},3000);return}
+    S.cards=S.cards.filter(c=>c.id!==b.dataset.id); save(); drawList(); renderStats();
+  }));
+}
+
+function renderSettings(){
+  const st=S.settings;
+  view.innerHTML=`<div style="display:flex;flex-direction:column;gap:16px">
+  <section class="panel"><h2>Révision</h2>
+    <div class="row">
+      <label>Sens des cartes<select id="s-dir">
+        <option value="h2f">汉字 → Français</option><option value="f2h">Français → 汉字</option><option value="mix">Mélangé</option></select></label>
+      <label>Nouvelles cartes par jour<input type="number" id="s-new" min="0" max="200" value="${st.newPerDay}"></label>
+    </div>
+    <label style="flex-direction:row;align-items:center;gap:8px;color:var(--ink)"><input type="checkbox" id="s-tones" ${st.tones?"checked":""}> Colorer les tons (1 <span class="tone1">rouge</span>, 2 <span class="tone2">orange</span>, 3 <span class="tone3">vert</span>, 4 <span class="tone4">bleu</span>, neutre <span class="tone5">gris</span>)</label>
+    <label style="flex-direction:row;align-items:center;gap:8px;color:var(--ink)"><input type="checkbox" id="s-auto" ${st.autoplay?"checked":""}> Lire la prononciation automatiquement en mode Français → 汉字</label>
+    <div class="note" id="voice-note"></div>
+  </section>
+  <section class="panel"><h2>Sauvegarde</h2>
+    <div class="note">Tes cartes et ta progression sont enregistrées dans ce navigateur uniquement. Copie ce texte de temps en temps pour les garder ailleurs, ou colle une sauvegarde puis clique sur Restaurer.</div>
+    <textarea id="bk"></textarea>
+    <div class="row" style="justify-content:flex-end">
+      <div class="msg" id="bk-msg" style="flex:1 1 auto"></div>
+      <button class="sbtn" id="bk-copy">Copier</button><button class="sbtn" id="bk-load">Restaurer</button><button class="sbtn danger" id="reset">Tout réinitialiser</button>
+    </div>
+  </section></div>`;
+  $("#s-dir").value=st.dir;
+  $("#voice-note").textContent=!("speechSynthesis" in window)?"Ton navigateur ne propose pas la synthèse vocale.":zhVoice?`Voix chinoise utilisée : ${zhVoice.name}.`:"Aucune voix chinoise détectée : installe une voix « Chinois (Chine) » dans les réglages de ton système pour avoir l'audio.";
+  $("#bk").value=JSON.stringify(S);
+  $("#s-dir").addEventListener("change",e=>{st.dir=e.target.value;save()});
+  $("#s-new").addEventListener("change",e=>{st.newPerDay=Math.max(0,+e.target.value||0);save();renderStats()});
+  $("#s-tones").addEventListener("change",e=>{st.tones=e.target.checked;save()});
+  $("#s-auto").addEventListener("change",e=>{st.autoplay=e.target.checked;save()});
+  $("#bk-copy").addEventListener("click",()=>{const t=$("#bk");navigator.clipboard?.writeText(t.value).then(()=>$("#bk-msg").textContent="Copié.",()=>{t.select();$("#bk-msg").textContent="Texte sélectionné : fais Ctrl+C."}) ?? (t.select())});
+  $("#bk-load").addEventListener("click",()=>{try{const d=JSON.parse($("#bk").value); if(!Array.isArray(d.cards)) throw 0; S=d; S.settings??={dir:"h2f",newPerDay:10,tones:true}; S.newLog??={date:"",n:0}; save(); render(); $("#bk-msg").textContent=`Restauré : ${S.cards.length} cartes.`}catch(e){$("#bk-msg").textContent="Ce texte n'est pas une sauvegarde valide."}});
+  const r=$("#reset"); r.addEventListener("click",()=>{if(r.dataset.armed){S=fresh();save();render();$("#bk-msg").textContent="Réinitialisé avec le paquet de départ.";return} r.dataset.armed=1;r.textContent="Confirmer la réinitialisation";});
+}
+
+/* ---------- Clavier ---------- */
+document.addEventListener("keydown",e=>{
+  if(tab!=="review"||/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+  if(e.code==="Space"&&!flipped){e.preventDefault();flip()}
+  else if(flipped&&["1","2","3","4"].includes(e.key)) answer(+e.key-1);
+  else if(e.key.toLowerCase()==="a"){const c=S.cards.find(x=>x.id===queue[0]); if(c&&(flipped||curDir==="h2f")) speak(c.h)}
+});
+for(const k of ["review","cards","settings"]) $("#tab-"+k).addEventListener("click",()=>setTab(k));
+setTab("review");
