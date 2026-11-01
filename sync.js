@@ -36,8 +36,14 @@
     const lMod = L.settingsMod||0, rMod = R.settingsMod||0;
     const ln = L.newLog||{date:"",n:0}, rn = R.newLog||{date:"",n:0};
     const newLog = ln.date === rn.date ? {date:ln.date, n:Math.max(ln.n, rn.n)} : (ln.date > rn.date ? ln : rn);
+    // records des défis : on garde le meilleur score et le plus grand nombre de parties
+    const records = {};
+    for (const src of [R.records||{}, L.records||{}]) for (const [k, r] of Object.entries(src)) {
+      const o = records[k] || { best:0, plays:0, last:0 };
+      records[k] = { best: Math.max(o.best, r.best||0), plays: Math.max(o.plays, r.plays||0), last: Math.max(o.last||0, r.last||0) };
+    }
     return { cards, deleted: del, settings: lMod >= rMod ? L.settings : R.settings,
-             settingsMod: Math.max(lMod, rMod), newLog, owner: L.owner };
+             settingsMod: Math.max(lMod, rMod), newLog, records, owner: L.owner };
   }
 
   // JSON avec les clés triées : la base réordonne les clés, il faut comparer le contenu

@@ -27,7 +27,7 @@ function fresh(){
 function mk(h,p,m,deck,id){return {id:id||Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,7),h,p,m,deck:deck||"Mes cartes",due:0,ivl:0,ease:2.5,reps:0,lapses:0,isNew:true,mod:Date.now()}}
 function migrate(){ // met à niveau les anciennes sauvegardes
   S.settings??={dir:"h2f",newPerDay:10,tones:true}; S.settings.active??=[]; S.newLog??={date:"",n:0};
-  S.deleted??={}; S.settingsMod??=0;
+  S.deleted??={}; S.settingsMod??=0; S.records??={};
   for(const c of S.cards){c.deck??=DEFAULT_DECK; c.mod??=0}
 }
 function load(){try{const r=localStorage.getItem(KEY); S=r?JSON.parse(r):fresh();}catch(e){S=fresh()} migrate()}
@@ -104,10 +104,29 @@ function renderStats(){
   const learned=P.filter(c=>c.ivl>=21).length;
   $("#stats").innerHTML=`<div><b>${due}</b>à réviser</div><div><b>${nw}</b>nouvelles aujourd'hui</div><div><b>${learned}</b>acquises (≥ 21 j)</div><div><b>${P.length}</b>cartes${activeDecks().length?" sélectionnées":""}</div>`;
 }
-function setTab(t){tab=t; for(const k of ["review","cards","settings"]) $("#tab-"+k).setAttribute("aria-current",k===t); if(t==="review"){queue=buildQueue();flipped=false;pickDir()} render()}
+function setTab(t){if(tab==="defis"&&t!=="defis") window.stopDefi?.(); tab=t; for(const k of ["review","defis","cards","settings"]) $("#tab-"+k).setAttribute("aria-current",k===t); if(t==="review"){queue=buildQueue();flipped=false;pickDir()} render()}
 function pickDir(){const d=S.settings.dir; curDir=d==="mix"?(Math.random()<.5?"h2f":"f2h"):d}
 
-function render(){renderStats(); ({review:renderReview,cards:renderCards,settings:renderSettings})[tab]()}
+function render(){renderStats(); applyLook(); ({review:renderReview,defis:()=>window.renderDefis?.(),cards:renderCards,settings:renderSettings})[tab]()}
+
+/* ---------- Apparence : style, police des caractères, caractère du jour, sceau ---------- */
+const HANFONTS={song:null, sans:"Noto+Sans+SC:wght@400;700", pinceau:"Ma+Shan+Zheng"};
+const loadedFonts=new Set();
+function applyLook(){
+  const st=S.settings, root=document.documentElement;
+  root.dataset.style=st.style||"jade";
+  root.dataset.hanfont=st.hanfont||"song";
+  const fam=HANFONTS[st.hanfont];
+  if(fam&&!loadedFonts.has(fam)){loadedFonts.add(fam); const l=document.createElement("link"); l.rel="stylesheet"; l.href=`https://fonts.googleapis.com/css2?family=${fam}&display=swap`; document.head.append(l)}
+  // caractère du jour : tiré de tes cartes, le même toute la journée
+  const chars=[...new Set(S.cards.flatMap(c=>[...c.h]).filter(ch=>/\p{Script=Han}/u.test(ch)))];
+  if(chars.length){let h=0; for(const ch of today()) h=(h*31+ch.charCodeAt(0))>>>0; root.style.setProperty("--daychar",`"${chars[h%chars.length]}"`)}
+}
+function sealChar(deck){
+  const m=String(deck).match(/HSK\s*(\d)/i); if(m) return "零壹贰叁肆伍陆柒捌玖"[+m[1]]||"汉";
+  const han=[...String(deck)].find(ch=>/\p{Script=Han}/u.test(ch)); if(han) return han;
+  return deck==="Mes cartes"?"我":"学";
+}
 
 function deckBar(){
   const now=Date.now(), a=activeDecks(), ds=decks();
@@ -130,7 +149,7 @@ function renderReview(){
   if(!c){
     const next=pool().filter(x=>!x.isNew).sort((a,b)=>a.due-b.due)[0];
     const when=next?new Date(next.due).toLocaleString("fr-FR",{weekday:"long",hour:"2-digit",minute:"2-digit"}):null;
-    view.innerHTML=deckBar()+`<div class="card"><div class="done"><div class="big">完了</div><div><b>wán le</b> — c'est fini pour aujourd'hui.</div>
+    view.innerHTML=deckBar()+`<div class="card"><div class="seal">完</div><div class="done"><div class="big">完了</div><div><b>wán le</b> — c'est fini pour aujourd'hui.</div>
       <div class="note">${when?"Prochaine révision : "+when+".":""} ${pool().some(x=>x.isNew)&&!newLeft()?"Limite de nouvelles cartes atteinte (modifiable dans Réglages).":""}</div></div></div>`;
     bindDeckBar(); return;
   }
@@ -146,6 +165,7 @@ function renderReview(){
   const tag=c.isNew?"Nouvelle":c.lapses?`Révision · ${c.lapses} oubli${c.lapses>1?"s":""}`:"Révision";
   view.innerHTML=deckBar()+`
     <div class="card ${flipped?"flip":""}">
+      <div class="seal" title="${esc(c.deck)}">${sealChar(c.deck)}</div>
       <div class="dir">${f2h?"Français → 汉字":"汉字 → Français"} · ${tag} · ${esc(c.deck)}</div>
       ${(flipped||!f2h)?`<button class="speak" id="speak" title="Écouter (touche A)">🔊 Écouter</button>`:""}
       ${front}${back}
@@ -276,6 +296,14 @@ function drawList(){
 function renderSettings(){
   const st=S.settings;
   view.innerHTML=`<div style="display:flex;flex-direction:column;gap:16px">
+  <section class="panel"><h2>Apparence</h2>
+    <div class="styles" role="radiogroup" aria-label="Style">
+      ${[["jade","Jade et nuages","Vert jade, motif de nuages 祥云"],["encre","Encre et papier","Papier de riz, encre et vermillon"],["cahier","Cahier d'écolier","Feuille quadrillée 田字格, encre bleue"]].map(([k,n,d])=>
+        `<button class="style-opt" role="radio" aria-checked="${(st.style||"jade")===k}" data-style-opt="${k}" id="style-${k}"><span class="sw" data-sw="${k}"><b>字</b><i></i></span><span><b>${n}</b><small>${d}</small></span></button>`).join("")}
+    </div>
+    <label>Police des caractères<select id="s-font">
+      <option value="song">Song 宋体 (imprimé, par défaut)</option><option value="sans">Hei 黑体 (bâton, comme sur écran)</option><option value="pinceau">Pinceau 楷书 (écrit à la main)</option></select></label>
+  </section>
   <section class="panel"><h2>Révision</h2>
     <div class="row">
       <label>Sens des cartes<select id="s-dir">
@@ -299,6 +327,10 @@ function renderSettings(){
     </div>
   </section></div>`;
   $("#s-dir").value=st.dir;
+  $("#s-font").value=st.hanfont||"song";
+  $("#s-font").addEventListener("change",e=>{st.hanfont=e.target.value;saveSettings();applyLook()});
+  view.querySelectorAll("[data-style-opt]").forEach(b=>b.addEventListener("click",()=>{st.style=b.dataset.styleOpt;saveSettings();applyLook();
+    view.querySelectorAll("[data-style-opt]").forEach(x=>x.setAttribute("aria-checked",x===b))}));
   $("#voice-note").textContent=!("speechSynthesis" in window)?"Ton navigateur ne propose pas la synthèse vocale.":zhVoice?`Voix chinoise utilisée : ${zhVoice.name}.`:"Aucune voix chinoise détectée : installe une voix « Chinois (Chine) » dans les réglages de ton système pour avoir l'audio.";
   $("#s-dir").addEventListener("change",e=>{st.dir=e.target.value;saveSettings()});
   $("#s-new").addEventListener("change",e=>{st.newPerDay=Math.max(0,+e.target.value||0);saveSettings();renderStats()});
@@ -336,5 +368,5 @@ document.addEventListener("keydown",e=>{
   else if(flipped&&["1","2","3","4"].includes(e.key)) answer(+e.key-1);
   else if(e.key.toLowerCase()==="a"){const c=S.cards.find(x=>x.id===queue[0]); if(c&&(flipped||curDir==="h2f")) speak(c.h)}
 });
-for(const k of ["review","cards","settings"]) $("#tab-"+k).addEventListener("click",()=>setTab(k));
+for(const k of ["review","defis","cards","settings"]) $("#tab-"+k).addEventListener("click",()=>setTab(k));
 setTab("review");
