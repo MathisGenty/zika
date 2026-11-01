@@ -17,11 +17,16 @@ const SEED = [["你好","nǐ hǎo","bonjour"],["谢谢","xiè xie","merci"],["�
 const KEY = "zika-v1";
 const DAY = 864e5;
 let S;
+const DEFAULT_DECK="HSK 1 · départ";
 function fresh(){
-  return {cards: SEED.map((c,i)=>mk(c[0],c[1],c[2],i)), settings:{dir:"h2f", newPerDay:10, tones:true}, newLog:{date:"",n:0}};
+  return {cards: SEED.map((c,i)=>mk(c[0],c[1],c[2],DEFAULT_DECK,i)), settings:{dir:"h2f", newPerDay:10, tones:true, active:[]}, newLog:{date:"",n:0}};
 }
-function mk(h,p,m,i){return {id:Date.now().toString(36)+"-"+(i??Math.random().toString(36).slice(2,7)),h,p,m,due:0,ivl:0,ease:2.5,reps:0,lapses:0,isNew:true}}
-function load(){try{const r=localStorage.getItem(KEY); S=r?JSON.parse(r):fresh();}catch(e){S=fresh()} }
+function mk(h,p,m,deck,i){return {id:Date.now().toString(36)+"-"+(i??Math.random().toString(36).slice(2,7)),h,p,m,deck:deck||"Mes cartes",due:0,ivl:0,ease:2.5,reps:0,lapses:0,isNew:true}}
+function migrate(){ // met à niveau les sauvegardes d'avant les paquets
+  S.settings??={dir:"h2f",newPerDay:10,tones:true}; S.settings.active??=[]; S.newLog??={date:"",n:0};
+  for(const c of S.cards) c.deck??=DEFAULT_DECK;
+}
+function load(){try{const r=localStorage.getItem(KEY); S=r?JSON.parse(r):fresh();}catch(e){S=fresh()} migrate()}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){} }
 load();
 
@@ -65,10 +70,16 @@ function schedule(c,g,dry){ // g: 0 à revoir, 1 difficile, 2 bien, 3 facile
 function label(c,g){const n=schedule(c,g,true); if(g===0) return "10 min"; const d=n.ivl; return d<31?d+" j":d<365?Math.round(d/30)+" mois":(d/365).toFixed(1)+" an"}
 const today=()=>new Date().toISOString().slice(0,10);
 function newLeft(){ if(S.newLog.date!==today()) S.newLog={date:today(),n:0}; return Math.max(0,S.settings.newPerDay-S.newLog.n) }
+/* ---------- Paquets ---------- */
+function decks(){return [...new Set(S.cards.map(c=>c.deck))]} // dans l'ordre d'ajout
+function activeDecks(){const all=decks(); return S.settings.active.filter(d=>all.includes(d))}
+function inActive(c){const a=activeDecks(); return !a.length||a.includes(c.deck)}
+function pool(){return S.cards.filter(inActive)}
+
 function buildQueue(){
-  const now=Date.now();
-  const due=S.cards.filter(c=>!c.isNew&&c.due<=now).sort((a,b)=>a.due-b.due);
-  const nw=S.cards.filter(c=>c.isNew).slice(0,newLeft());
+  const now=Date.now(), P=pool();
+  const due=P.filter(c=>!c.isNew&&c.due<=now).sort((a,b)=>a.due-b.due);
+  const nw=P.filter(c=>c.isNew).slice(0,newLeft());
   return [...due,...nw].map(c=>c.id);
 }
 
@@ -83,23 +94,39 @@ const $=s=>document.querySelector(s), view=$("#view");
 let tab="review", queue=[], flipped=false, curDir="h2f";
 
 function renderStats(){
-  const now=Date.now(), due=S.cards.filter(c=>!c.isNew&&c.due<=now).length, nw=Math.min(S.cards.filter(c=>c.isNew).length,newLeft());
-  const learned=S.cards.filter(c=>c.ivl>=21).length;
-  $("#stats").innerHTML=`<div><b>${due}</b>à réviser</div><div><b>${nw}</b>nouvelles aujourd'hui</div><div><b>${learned}</b>acquises (≥ 21 j)</div><div><b>${S.cards.length}</b>cartes</div>`;
+  const now=Date.now(), P=pool(), due=P.filter(c=>!c.isNew&&c.due<=now).length, nw=Math.min(P.filter(c=>c.isNew).length,newLeft());
+  const learned=P.filter(c=>c.ivl>=21).length;
+  $("#stats").innerHTML=`<div><b>${due}</b>à réviser</div><div><b>${nw}</b>nouvelles aujourd'hui</div><div><b>${learned}</b>acquises (≥ 21 j)</div><div><b>${P.length}</b>cartes${activeDecks().length?" sélectionnées":""}</div>`;
 }
 function setTab(t){tab=t; for(const k of ["review","cards","settings"]) $("#tab-"+k).setAttribute("aria-current",k===t); if(t==="review"){queue=buildQueue();flipped=false;pickDir()} render()}
 function pickDir(){const d=S.settings.dir; curDir=d==="mix"?(Math.random()<.5?"h2f":"f2h"):d}
 
 function render(){renderStats(); ({review:renderReview,cards:renderCards,settings:renderSettings})[tab]()}
 
+function deckBar(){
+  const now=Date.now(), a=activeDecks(), ds=decks();
+  if(ds.length<2) return "";
+  const cnt=d=>{const cs=S.cards.filter(c=>c.deck===d); return cs.filter(c=>!c.isNew&&c.due<=now).length+" · "+cs.filter(c=>c.isNew).length};
+  return `<div class="decks" role="group" aria-label="Paquets à réviser">
+    <button class="chip" data-deck="" aria-pressed="${!a.length}">Tous</button>
+    ${ds.map(d=>`<button class="chip" data-deck="${esc(d)}" aria-pressed="${a.includes(d)}">${esc(d)}<small title="à réviser · nouvelles">${cnt(d)}</small></button>`).join("")}
+  </div>`;
+}
+function bindDeckBar(){
+  view.querySelectorAll(".chip").forEach(b=>b.addEventListener("click",()=>{
+    const d=b.dataset.deck; let a=activeDecks();
+    a = !d ? [] : a.includes(d) ? a.filter(x=>x!==d) : [...a,d];
+    S.settings.active=a; save(); queue=buildQueue(); flipped=false; pickDir(); render();
+  }));
+}
 function renderReview(){
   const c=S.cards.find(x=>x.id===queue[0]);
   if(!c){
-    const next=S.cards.filter(x=>!x.isNew).sort((a,b)=>a.due-b.due)[0];
+    const next=pool().filter(x=>!x.isNew).sort((a,b)=>a.due-b.due)[0];
     const when=next?new Date(next.due).toLocaleString("fr-FR",{weekday:"long",hour:"2-digit",minute:"2-digit"}):null;
-    view.innerHTML=`<div class="card"><div class="done"><div class="big">完了</div><div><b>wán le</b> — c'est fini pour aujourd'hui.</div>
-      <div class="note">${when?"Prochaine révision : "+when+".":""} ${S.cards.some(x=>x.isNew)&&!newLeft()?"Limite de nouvelles cartes atteinte (modifiable dans Réglages).":""}</div></div></div>`;
-    return;
+    view.innerHTML=deckBar()+`<div class="card"><div class="done"><div class="big">完了</div><div><b>wán le</b> — c'est fini pour aujourd'hui.</div>
+      <div class="note">${when?"Prochaine révision : "+when+".":""} ${pool().some(x=>x.isNew)&&!newLeft()?"Limite de nouvelles cartes atteinte (modifiable dans Réglages).":""}</div></div></div>`;
+    bindDeckBar(); return;
   }
   const col=S.settings.tones, f2h=curDir==="f2h";
   let front, back="";
@@ -111,9 +138,9 @@ function renderReview(){
     if(flipped) back=hanziHTML(c.h,c.p,col)+`<div class="pinyin ${col?"":"mono"}">${pinyinHTML(c.p)}</div>`;
   }
   const tag=c.isNew?"Nouvelle":c.lapses?`Révision · ${c.lapses} oubli${c.lapses>1?"s":""}`:"Révision";
-  view.innerHTML=`
+  view.innerHTML=deckBar()+`
     <div class="card ${flipped?"flip":""}">
-      <div class="dir">${f2h?"Français → 汉字":"汉字 → Français"} · ${tag}</div>
+      <div class="dir">${f2h?"Français → 汉字":"汉字 → Français"} · ${tag} · ${esc(c.deck)}</div>
       ${(flipped||!f2h)?`<button class="speak" id="speak" title="Écouter (touche A)">🔊 Écouter</button>`:""}
       ${front}${back}
     </div>
@@ -121,6 +148,7 @@ function renderReview(){
       ${["À revoir","Difficile","Bien","Facile"].map((l,g)=>`<button class="btn g${g}" id="g${g}">${l}<small>${label(c,g)} · <kbd>${g+1}</kbd></small></button>`).join("")}
     </div>`:`<div class="actions one"><button class="btn primary" id="flip">Afficher la réponse <kbd>Espace</kbd></button></div>`}
     <div class="hint">${queue.length} carte${queue.length>1?"s":""} restante${queue.length>1?"s":""} dans cette session</div>`;
+  bindDeckBar();
   $("#flip")?.addEventListener("click",flip);
   $("#speak")?.addEventListener("click",()=>speak(c.h));
   for(let g=0;g<4;g++) $("#g"+g)?.addEventListener("click",()=>answer(g));
@@ -133,8 +161,12 @@ function answer(g){
   save(); flipped=false; pickDir(); render();
 }
 
+let listDeck=""; // filtre de la liste des cartes
 function renderCards(){
-  view.innerHTML=`
+  const ds=decks();
+  if(listDeck&&!ds.includes(listDeck)) listDeck="";
+  const dl=`<datalist id="deck-list">${ds.map(d=>`<option value="${esc(d)}">`).join("")}</datalist>`;
+  view.innerHTML=`${dl}
   <div style="display:flex;flex-direction:column;gap:16px">
   <section class="panel">
     <h2>Ajouter une carte</h2>
@@ -142,48 +174,63 @@ function renderCards(){
       <label>汉字<input type="text" id="in-h" placeholder="你好" lang="zh"></label>
       <label>Pinyin<input type="text" id="in-p" placeholder="ni3 hao3 ou nǐ hǎo"></label>
       <label>Sens<input type="text" id="in-m" placeholder="bonjour"></label>
+      <label>Paquet<input type="text" id="in-d" list="deck-list" value="${esc(listDeck||"Mes cartes")}"></label>
     </div>
     <div class="row" style="align-items:center"><div class="preview" id="pv"></div><button class="sbtn accent" id="add">Ajouter</button></div>
     <div class="msg" id="add-msg"></div>
   </section>
   <section class="panel">
     <h2>Importer une liste</h2>
-    <div class="note">Une carte par ligne : <code>汉字 ; pinyin ; sens</code>. Séparateurs acceptés : point-virgule, tabulation (copier-coller depuis un tableur) ou virgule. Le pinyin peut s'écrire avec des chiffres (<code>xue2 xi2</code>).</div>
-    <textarea id="imp" placeholder="书包;shu1 bao1;cartable&#10;咖啡;kā fēi;café"></textarea>
-    <div class="row" style="align-items:center"><div class="msg" id="imp-msg"></div><button class="sbtn accent" id="imp-go">Importer</button></div>
+    <div class="note">Une carte par ligne : <code>汉字 ; pinyin ; sens</code>. Pour ranger par paquet, mets une ligne de titre qui commence par <code>#</code> : toutes les cartes en dessous iront dans ce paquet. Séparateurs acceptés : point-virgule, tabulation (copier-coller depuis un tableur) ou virgule. Le pinyin peut s'écrire avec des chiffres (<code>xue2</code>).</div>
+    <textarea id="imp" placeholder="# Les nombres&#10;一;yi1;un&#10;二;er4;deux&#10;# La nature&#10;山;shān;montagne"></textarea>
+    <div class="row" style="align-items:end">
+      <label>Paquet par défaut (si aucune ligne #)<input type="text" id="imp-d" list="deck-list" value="Mes cartes"></label>
+      <button class="sbtn accent" id="imp-go">Importer</button>
+    </div>
+    <div class="msg" id="imp-msg"></div>
   </section>
   <section class="panel">
-    <div class="row" style="align-items:center"><h2 style="flex:1 1 auto">Mes cartes (${S.cards.length})</h2><input type="text" id="q" placeholder="Rechercher…" style="flex:0 1 220px"></div>
+    <div class="row" style="align-items:center"><h2 style="flex:1 1 auto">Mes cartes</h2>
+      <select id="ld" style="flex:0 1 220px"><option value="">Tous les paquets (${S.cards.length})</option>${ds.map(d=>`<option value="${esc(d)}" ${d===listDeck?"selected":""}>${esc(d)} (${S.cards.filter(c=>c.deck===d).length})</option>`).join("")}</select>
+      <input type="text" id="q" placeholder="Rechercher…" style="flex:0 1 180px"></div>
     <div class="list" id="list"></div>
+    ${listDeck?`<div class="row" style="justify-content:flex-end"><button class="sbtn danger" id="del-deck">Supprimer le paquet « ${esc(listDeck)} »</button></div>`:""}
   </section></div>`;
   const pv=()=>{const p=normPinyin($("#in-p").value); $("#pv").innerHTML=p?`Pinyin enregistré : <b>${pinyinHTML(p)}</b>`:""};
   $("#in-p").addEventListener("input",pv);
   $("#add").addEventListener("click",()=>{
-    const h=$("#in-h").value.trim(), p=normPinyin($("#in-p").value), m=$("#in-m").value.trim();
+    const h=$("#in-h").value.trim(), p=normPinyin($("#in-p").value), m=$("#in-m").value.trim(), d=$("#in-d").value.trim()||"Mes cartes";
     if(!h||!m){$("#add-msg").textContent="Il faut au moins les caractères et le sens."; return}
-    if(S.cards.some(c=>c.h===h)){$("#add-msg").textContent=`« ${h} » est déjà dans tes cartes.`; return}
-    S.cards.push(mk(h,p,m)); save(); renderCards(); $("#add-msg").textContent=`« ${h} » ajouté.`; renderStats(); $("#in-h").focus();
+    if(S.cards.some(c=>c.h===h&&c.deck===d)){$("#add-msg").textContent=`« ${h} » est déjà dans le paquet « ${d} ».`; return}
+    S.cards.push(mk(h,p,m,d)); save(); renderCards(); $("#in-d").value=d; $("#add-msg").textContent=`« ${h} » ajouté à « ${d} ».`; renderStats(); $("#in-h").focus();
   });
   $("#imp-go").addEventListener("click",()=>{
-    let added=0, skip=0;
+    let added=0, skip=0, deck=$("#imp-d").value.trim()||"Mes cartes"; const touched=new Set();
     for(const line of $("#imp").value.split(/\n/)){
       if(!line.trim()) continue;
+      if(line.trim().startsWith("#")){deck=line.trim().replace(/^#+/,"").trim()||deck; continue}
       const sep=line.includes("\t")?"\t":line.includes(";")?";":",";
       const [h,p="",...rest]=line.split(sep).map(s=>s.trim()); const m=rest.join(sep===","?", ":sep).trim();
-      if(!h||!m||S.cards.some(c=>c.h===h)){skip++;continue}
-      S.cards.push(mk(h,normPinyin(p),m)); added++;
+      if(!h||!m||S.cards.some(c=>c.h===h&&c.deck===deck)){skip++;continue}
+      S.cards.push(mk(h,normPinyin(p),m,deck)); added++; touched.add(deck);
     }
-    save(); renderCards(); $("#imp-msg").textContent=`${added} carte${added>1?"s":""} importée${added>1?"s":""}${skip?`, ${skip} ignorée${skip>1?"s":""} (doublon ou ligne incomplète)`:""}.`; renderStats();
+    save(); renderCards();
+    $("#imp-msg").textContent=`${added} carte${added>1?"s":""} importée${added>1?"s":""}${touched.size?` dans ${touched.size} paquet${touched.size>1?"s":""}`:""}${skip?`, ${skip} ignorée${skip>1?"s":""} (doublon ou ligne incomplète)`:""}.`; renderStats();
+  });
+  $("#ld").addEventListener("change",e=>{listDeck=e.target.value; renderCards()});
+  const dd=$("#del-deck"); dd?.addEventListener("click",()=>{
+    if(!dd.dataset.armed){dd.dataset.armed=1; dd.textContent=`Confirmer : supprimer ${S.cards.filter(c=>c.deck===listDeck).length} cartes`; return}
+    S.cards=S.cards.filter(c=>c.deck!==listDeck); listDeck=""; save(); renderCards(); renderStats();
   });
   $("#q").addEventListener("input",drawList);
   drawList();
 }
 function drawList(){
   const q=($("#q")?.value||"").toLowerCase().trim(), now=Date.now();
-  const items=S.cards.filter(c=>!q||(c.h+c.p+c.m).toLowerCase().includes(q)).slice().reverse();
+  const items=S.cards.filter(c=>(!listDeck||c.deck===listDeck)&&(!q||(c.h+c.p+c.m).toLowerCase().includes(q)));
   $("#list").innerHTML=items.map(c=>{
     const st=c.isNew?"nouvelle":c.due<=now?"à réviser":"dans "+Math.max(1,Math.round((c.due-now)/DAY))+" j";
-    return `<div class="item"><div class="h">${esc(c.h)}</div><div class="m"><div>${pinyinHTML(c.p)}</div><div>${esc(c.m)}</div></div>
+    return `<div class="item"><div class="h">${esc(c.h)}</div><div class="m"><div>${pinyinHTML(c.p)}</div><div>${esc(c.m)}${listDeck?"":` · <i>${esc(c.deck)}</i>`}</div></div>
       <div class="due">${st}<button class="del" data-id="${c.id}">Supprimer</button></div></div>`}).join("")||`<div class="note">Aucune carte ne correspond.</div>`;
   $("#list").querySelectorAll(".del").forEach(b=>b.addEventListener("click",()=>{
     if(!b.classList.contains("armed")){b.classList.add("armed");b.textContent="Confirmer ?";setTimeout(()=>{b.classList.remove("armed");b.textContent="Supprimer"},3000);return}
@@ -220,7 +267,7 @@ function renderSettings(){
   $("#s-tones").addEventListener("change",e=>{st.tones=e.target.checked;save()});
   $("#s-auto").addEventListener("change",e=>{st.autoplay=e.target.checked;save()});
   $("#bk-copy").addEventListener("click",()=>{const t=$("#bk");navigator.clipboard?.writeText(t.value).then(()=>$("#bk-msg").textContent="Copié.",()=>{t.select();$("#bk-msg").textContent="Texte sélectionné : fais Ctrl+C."}) ?? (t.select())});
-  $("#bk-load").addEventListener("click",()=>{try{const d=JSON.parse($("#bk").value); if(!Array.isArray(d.cards)) throw 0; S=d; S.settings??={dir:"h2f",newPerDay:10,tones:true}; S.newLog??={date:"",n:0}; save(); render(); $("#bk-msg").textContent=`Restauré : ${S.cards.length} cartes.`}catch(e){$("#bk-msg").textContent="Ce texte n'est pas une sauvegarde valide."}});
+  $("#bk-load").addEventListener("click",()=>{try{const d=JSON.parse($("#bk").value); if(!Array.isArray(d.cards)) throw 0; S=d; migrate(); save(); render(); $("#bk-msg").textContent=`Restauré : ${S.cards.length} cartes.`}catch(e){$("#bk-msg").textContent="Ce texte n'est pas une sauvegarde valide."}});
   const r=$("#reset"); r.addEventListener("click",()=>{if(r.dataset.armed){S=fresh();save();render();$("#bk-msg").textContent="Réinitialisé avec le paquet de départ.";return} r.dataset.armed=1;r.textContent="Confirmer la réinitialisation";});
 }
 
