@@ -3,12 +3,14 @@
 // version publiée ; hors ligne, l'app utilise la copie gardée en cache.
 // Pas besoin de changer de numéro de version à chaque modif.
 
-const CACHE = "zika-cache-v1";
+const CACHE = "zika-cache-v3";
 const SHELL = [
   "./",
   "index.html",
   "style.css",
   "app.js",
+  "sync.js",
+  "config.js",
   "manifest.webmanifest",
   "icons/icon-192.png",
   "icons/apple-touch-icon.png"
@@ -31,8 +33,8 @@ self.addEventListener("fetch", (e) => {
   if (req.method !== "GET") return;
   const url = new URL(req.url);
 
-  // Polices Google : cache d'abord (elles ne changent jamais)
-  if (url.hostname.endsWith("googleapis.com") || url.hostname.endsWith("gstatic.com")) {
+  // Polices Google et bibliothèque Supabase (version fixe) : cache d'abord
+  if (url.hostname.endsWith("googleapis.com") || url.hostname.endsWith("gstatic.com") || url.hostname === "cdn.jsdelivr.net") {
     e.respondWith(
       caches.match(req).then((hit) => hit || fetch(req).then((res) => {
         const copy = res.clone();
@@ -46,7 +48,7 @@ self.addEventListener("fetch", (e) => {
   // Fichiers de l'app : réseau d'abord, cache en secours
   if (url.origin === location.origin) {
     e.respondWith(
-      fetch(req).then((res) => {
+      fetch(req, { cache: "no-cache" }).then((res) => {
         const copy = res.clone();
         caches.open(CACHE).then((c) => c.put(req, copy));
         return res;

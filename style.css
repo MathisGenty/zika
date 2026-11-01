@@ -121,3 +121,10 @@ label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--mute
 .lib-n{font-family:var(--f-mono);font-size:12px;color:var(--muted)}
 .lib-ok{font-size:13px;color:var(--accent);font-weight:600;flex:0 0 auto}
 .sbtn:disabled{opacity:.6;cursor:default}
+
+/* Synchronisation */
+.sync-badge{font-size:12px;color:var(--muted);font-weight:500;align-self:center}
+.sync-badge::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--muted);margin-right:6px;vertical-align:1px}
+.sync-badge[data-state="ok"]::before{background:var(--t3)}
+.sync-badge[data-state="error"]::before{background:var(--again)}
+.sync-badge[data-state="busy"]::before{background:var(--t2)}

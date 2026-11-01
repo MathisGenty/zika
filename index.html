@@ -38,7 +38,10 @@
   <main id="view"></main>
 </div>
 
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.4/dist/umd/supabase.js"></script>
 <script src="app.js"></script>
+<script src="sync.js"></script>
 <script>
   // Mode hors-ligne : enregistre le service worker (ignoré si on ouvre le fichier en local)
   if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {

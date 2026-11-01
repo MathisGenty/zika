@@ -18,16 +18,22 @@ const KEY = "zika-v1";
 const DAY = 864e5;
 let S;
 const DEFAULT_DECK="HSK 1 · départ";
+/* Chaque carte a un champ "mod" (date de dernière modification) et les cartes supprimées
+   laissent une trace dans S.deleted : c'est ce qui permet de fusionner deux appareils (sync.js). */
 function fresh(){
-  return {cards: SEED.map((c,i)=>mk(c[0],c[1],c[2],DEFAULT_DECK,i)), settings:{dir:"h2f", newPerDay:10, tones:true, active:[]}, newLog:{date:"",n:0}};
+  const cards=SEED.map((c,i)=>mk(c[0],c[1],c[2],DEFAULT_DECK,"seed-"+i)); cards.forEach(c=>c.mod=0);
+  return {cards, settings:{dir:"h2f", newPerDay:10, tones:true, active:[]}, settingsMod:0, newLog:{date:"",n:0}, deleted:{}};
 }
-function mk(h,p,m,deck,i){return {id:Date.now().toString(36)+"-"+(i??Math.random().toString(36).slice(2,7)),h,p,m,deck:deck||"Mes cartes",due:0,ivl:0,ease:2.5,reps:0,lapses:0,isNew:true}}
-function migrate(){ // met à niveau les sauvegardes d'avant les paquets
+function mk(h,p,m,deck,id){return {id:id||Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,7),h,p,m,deck:deck||"Mes cartes",due:0,ivl:0,ease:2.5,reps:0,lapses:0,isNew:true,mod:Date.now()}}
+function migrate(){ // met à niveau les anciennes sauvegardes
   S.settings??={dir:"h2f",newPerDay:10,tones:true}; S.settings.active??=[]; S.newLog??={date:"",n:0};
-  for(const c of S.cards) c.deck??=DEFAULT_DECK;
+  S.deleted??={}; S.settingsMod??=0;
+  for(const c of S.cards){c.deck??=DEFAULT_DECK; c.mod??=0}
 }
 function load(){try{const r=localStorage.getItem(KEY); S=r?JSON.parse(r):fresh();}catch(e){S=fresh()} migrate()}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){} }
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){} window.onLocalChange?.()}
+function saveSettings(){S.settingsMod=Date.now(); save()}
+function removeCards(pred){const now=Date.now(); S.cards=S.cards.filter(c=>{if(pred(c)){S.deleted[c.id]=now;return false}return true})}
 load();
 
 /* ---------- Pinyin : tons ---------- */
@@ -63,7 +69,7 @@ function schedule(c,g,dry){ // g: 0 à revoir, 1 difficile, 2 bien, 3 facile
     n.ease=Math.max(1.3,n.ease+(g===1?-.15:g===3?.15:0));
     n.reps++; n.due=now+n.ivl*DAY;
   }
-  n.isNew=false;
+  n.isNew=false; n.mod=now;
   if(!dry) Object.assign(c,n);
   return n;
 }
@@ -116,7 +122,7 @@ function bindDeckBar(){
   view.querySelectorAll(".chip").forEach(b=>b.addEventListener("click",()=>{
     const d=b.dataset.deck; let a=activeDecks();
     a = !d ? [] : a.includes(d) ? a.filter(x=>x!==d) : [...a,d];
-    S.settings.active=a; save(); queue=buildQueue(); flipped=false; pickDir(); render();
+    S.settings.active=a; saveSettings(); queue=buildQueue(); flipped=false; pickDir(); render();
   }));
 }
 function renderReview(){
@@ -224,7 +230,7 @@ function renderCards(){
   $("#ld").addEventListener("change",e=>{listDeck=e.target.value; renderCards()});
   const dd=$("#del-deck"); dd?.addEventListener("click",()=>{
     if(!dd.dataset.armed){dd.dataset.armed=1; dd.textContent=`Confirmer : supprimer ${S.cards.filter(c=>c.deck===listDeck).length} cartes`; return}
-    S.cards=S.cards.filter(c=>c.deck!==listDeck); listDeck=""; save(); renderCards(); renderStats();
+    removeCards(c=>c.deck===listDeck); listDeck=""; save(); renderCards(); renderStats();
   });
   $("#q").addEventListener("input",drawList);
   drawList();
@@ -248,7 +254,7 @@ async function drawLibrary(){
     try{
       const data=await (await fetch("decks/"+d.file,{cache:"no-cache"})).json();
       const have=new Set(S.cards.filter(c=>c.deck===d.name).map(c=>c.h)); let n=0;
-      data.forEach(([h,p,m],k)=>{ if(!have.has(h)){S.cards.push(mk(h,p,m,d.name,d.file+k)); n++} });
+      data.forEach(([h,p,m],k)=>{ if(!have.has(h)){S.cards.push(mk(h,p,m,d.name,"lib-"+d.file.replace(/\.json$/,"")+"-"+k)); n++} });
       save(); renderStats(); renderCards();
       $("#lib-body").insertAdjacentHTML("afterend",`<div class="msg">${n} cartes ajoutées au paquet « ${esc(d.name)} ». Elles arrivent par ${S.settings.newPerDay} nouvelles par jour (réglable).</div>`);
     }catch(e){ b.disabled=false; b.textContent="Réessayer" }
@@ -263,7 +269,7 @@ function drawList(){
       <div class="due">${st}<button class="del" data-id="${c.id}">Supprimer</button></div></div>`}).join("")||`<div class="note">Aucune carte ne correspond.</div>`;
   $("#list").querySelectorAll(".del").forEach(b=>b.addEventListener("click",()=>{
     if(!b.classList.contains("armed")){b.classList.add("armed");b.textContent="Confirmer ?";setTimeout(()=>{b.classList.remove("armed");b.textContent="Supprimer"},3000);return}
-    S.cards=S.cards.filter(c=>c.id!==b.dataset.id); save(); drawList(); renderStats();
+    removeCards(c=>c.id===b.dataset.id); save(); drawList(); renderStats();
   }));
 }
 
@@ -280,24 +286,47 @@ function renderSettings(){
     <label style="flex-direction:row;align-items:center;gap:8px;color:var(--ink)"><input type="checkbox" id="s-auto" ${st.autoplay?"checked":""}> Lire la prononciation automatiquement en mode Français → 汉字</label>
     <div class="note" id="voice-note"></div>
   </section>
-  <section class="panel"><h2>Sauvegarde</h2>
-    <div class="note">Tes cartes et ta progression sont enregistrées dans ce navigateur uniquement. Copie ce texte de temps en temps pour les garder ailleurs, ou colle une sauvegarde puis clique sur Restaurer.</div>
-    <textarea id="bk"></textarea>
-    <div class="row" style="justify-content:flex-end">
+  <section class="panel" id="account"></section>
+  <section class="panel"><h2>Sauvegarde dans un fichier</h2>
+    <div class="note">Un filet de sécurité, avec ou sans compte : télécharge un fichier avec toutes tes cartes et ta progression, et garde-le où tu veux (iCloud, Drive, mail…).</div>
+    <div class="row" style="justify-content:flex-start">
+      <button class="sbtn" id="bk-dl">Télécharger ma sauvegarde</button>
+      <label class="sbtn" for="bk-file" style="flex-direction:row;color:var(--ink);font-weight:600">Restaurer depuis un fichier<input type="file" id="bk-file" accept=".json,application/json" hidden></label>
+    </div>
+    <div class="row" style="justify-content:flex-end;align-items:center">
       <div class="msg" id="bk-msg" style="flex:1 1 auto"></div>
-      <button class="sbtn" id="bk-copy">Copier</button><button class="sbtn" id="bk-load">Restaurer</button><button class="sbtn danger" id="reset">Tout réinitialiser</button>
+      <button class="sbtn danger" id="reset">Tout réinitialiser</button>
     </div>
   </section></div>`;
   $("#s-dir").value=st.dir;
   $("#voice-note").textContent=!("speechSynthesis" in window)?"Ton navigateur ne propose pas la synthèse vocale.":zhVoice?`Voix chinoise utilisée : ${zhVoice.name}.`:"Aucune voix chinoise détectée : installe une voix « Chinois (Chine) » dans les réglages de ton système pour avoir l'audio.";
-  $("#bk").value=JSON.stringify(S);
-  $("#s-dir").addEventListener("change",e=>{st.dir=e.target.value;save()});
-  $("#s-new").addEventListener("change",e=>{st.newPerDay=Math.max(0,+e.target.value||0);save();renderStats()});
-  $("#s-tones").addEventListener("change",e=>{st.tones=e.target.checked;save()});
-  $("#s-auto").addEventListener("change",e=>{st.autoplay=e.target.checked;save()});
-  $("#bk-copy").addEventListener("click",()=>{const t=$("#bk");navigator.clipboard?.writeText(t.value).then(()=>$("#bk-msg").textContent="Copié.",()=>{t.select();$("#bk-msg").textContent="Texte sélectionné : fais Ctrl+C."}) ?? (t.select())});
-  $("#bk-load").addEventListener("click",()=>{try{const d=JSON.parse($("#bk").value); if(!Array.isArray(d.cards)) throw 0; S=d; migrate(); save(); render(); $("#bk-msg").textContent=`Restauré : ${S.cards.length} cartes.`}catch(e){$("#bk-msg").textContent="Ce texte n'est pas une sauvegarde valide."}});
-  const r=$("#reset"); r.addEventListener("click",()=>{if(r.dataset.armed){S=fresh();save();render();$("#bk-msg").textContent="Réinitialisé avec le paquet de départ.";return} r.dataset.armed=1;r.textContent="Confirmer la réinitialisation";});
+  $("#s-dir").addEventListener("change",e=>{st.dir=e.target.value;saveSettings()});
+  $("#s-new").addEventListener("change",e=>{st.newPerDay=Math.max(0,+e.target.value||0);saveSettings();renderStats()});
+  $("#s-tones").addEventListener("change",e=>{st.tones=e.target.checked;saveSettings()});
+  $("#s-auto").addEventListener("change",e=>{st.autoplay=e.target.checked;saveSettings()});
+  $("#bk-dl").addEventListener("click",()=>{
+    const blob=new Blob([JSON.stringify(S)],{type:"application/json"}), a=document.createElement("a");
+    a.href=URL.createObjectURL(blob); a.download=`zika-sauvegarde-${today()}.json`; document.body.append(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),1000); $("#bk-msg").textContent="Sauvegarde téléchargée.";
+  });
+  $("#bk-file").addEventListener("change",async e=>{
+    const f=e.target.files[0]; if(!f) return;
+    try{ restoreFrom(JSON.parse(await f.text())); render(); $("#bk-msg").textContent=`Restauré : ${S.cards.length} cartes.` }
+    catch(err){ $("#bk-msg").textContent="Ce fichier n'est pas une sauvegarde Zìkǎ valide." }
+  });
+  const r=$("#reset"); r.addEventListener("click",()=>{
+    if(r.dataset.armed){ const old=S; S=fresh(); const now=Date.now(); S.deleted={...old.deleted}; old.cards.forEach(c=>S.deleted[c.id]=now);
+      for(const c of S.cards){delete S.deleted[c.id]; c.mod=now} S.settingsMod=now; save(); render(); $("#bk-msg").textContent="Réinitialisé avec le paquet de départ."; return }
+    r.dataset.armed=1; r.textContent="Confirmer la réinitialisation";
+  });
+  window.renderAccount?.();
+}
+/* Restaurer une sauvegarde : elle devient la version la plus récente, y compris sur les autres appareils */
+function restoreFrom(d){
+  if(!Array.isArray(d?.cards)) throw new Error("invalide");
+  const now=Date.now(), keep=new Set(d.cards.map(c=>c.id)), del={...S.deleted,...(d.deleted||{})};
+  S.cards.forEach(c=>{if(!keep.has(c.id)) del[c.id]=now});
+  S=d; migrate(); S.deleted=del; for(const c of S.cards){delete S.deleted[c.id]; c.mod=now} S.settingsMod=now; save();
 }
 
 /* ---------- Clavier ---------- */
