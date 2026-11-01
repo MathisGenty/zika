@@ -37,16 +37,20 @@
     const ln = L.newLog||{date:"",n:0}, rn = R.newLog||{date:"",n:0};
     const newLog = ln.date === rn.date ? {date:ln.date, n:Math.max(ln.n, rn.n)} : (ln.date > rn.date ? ln : rn);
     // records des défis : on garde le meilleur score et le plus grand nombre de parties
-    const records = {};
-    for (const src of [R.records||{}, L.records||{}]) for (const [k, r] of Object.entries(src)) {
-      const o = records[k] || { best:0, plays:0, last:0 };
-      records[k] = { best: Math.max(o.best, r.best||0), plays: Math.max(o.plays, r.plays||0), last: Math.max(o.last||0, r.last||0) };
-    }
+    const mergeRec = (a = {}, b = {}) => {
+      const out = {};
+      for (const src of [a, b]) for (const [k, r] of Object.entries(src)) {
+        const o = out[k] || { best:0, plays:0, last:0 };
+        out[k] = { best: Math.max(o.best, r.best||0), plays: Math.max(o.plays, r.plays||0), last: Math.max(o.last||0, r.last||0) };
+      }
+      return out;
+    };
+    const records = mergeRec(R.records, L.records), records2 = mergeRec(R.records2, L.records2);
     const activity = [...new Set([...(R.activity||[]), ...(L.activity||[])])].sort().slice(-400);
     const ld = L.daily, rd = R.daily;
     const daily = !ld ? rd : !rd ? ld : ld.day !== rd.day ? (ld.day > rd.day ? ld : rd) : (ld.score >= rd.score ? ld : rd);
     return { cards, deleted: del, settings: lMod >= rMod ? L.settings : R.settings,
-             settingsMod: Math.max(lMod, rMod), newLog, records, activity, daily, owner: L.owner };
+             settingsMod: Math.max(lMod, rMod), newLog, records, records2, activity, daily, owner: L.owner };
   }
 
   // JSON avec les clés triées : la base réordonne les clés, il faut comparer le contenu

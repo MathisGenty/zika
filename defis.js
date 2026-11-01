@@ -1,19 +1,21 @@
 /* =====================================================================
    Zìkǎ 字卡 — Défis : Éclair, Tons, Survie
-   - Questions à choix multiples chronométrées, points + combo.
+   - Questions à choix multiples chronométrées, avec un bouton « Je ne sais pas ».
+   - Barème : Éclair, Tons et défi du jour = +10 par bonne réponse, −5 par erreur
+     (ou temps écoulé), 0 pour « Je ne sais pas ». Survie = 1 point par bonne réponse.
    - Records enregistrés dans S.records (et synchronisés avec le compte).
    - Un mot raté pendant un défi revient tout de suite dans la révision.
    ===================================================================== */
 (function(){
   const MODES = {
     eclair: { name:"Éclair", glyph:"闪", n:10, time:8,
-      desc:"10 questions, 8 secondes chacune. Enchaîne les bonnes réponses pour multiplier tes points." },
+      desc:"10 questions, 8 secondes chacune. +10 par bonne réponse, −5 par erreur." },
     tons:   { name:"Tons",   glyph:"声", n:15, time:10,
-      desc:"Trouve le ton de la syllabe soulignée. 15 questions, 10 secondes chacune." },
+      desc:"Trouve le ton de la syllabe soulignée. 15 questions de 10 secondes. +10 / −5." },
     survie: { name:"Survie", glyph:"命", n:Infinity, time:10,
-      desc:"Questions à l'infini et 3 vies. Le temps raccourcit et le niveau monte." },
+      desc:"1 point par bonne réponse, 3 vies. Le temps raccourcit et le niveau monte." },
     quotidien: { name:"Défi du jour", glyph:"日", n:10, time:8, hidden:true,
-      desc:"Les mêmes 10 questions pour tout le monde aujourd'hui. Un seul essai." }
+      desc:"Les mêmes 10 questions pour tout le monde aujourd'hui. Un seul essai. +10 / −5." }
   };
   const TONE_NAMES = ["", "1er ton", "2e ton", "3e ton", "4e ton", "neutre"];
 
@@ -33,7 +35,8 @@
   const fmt = n => n.toLocaleString("fr-FR");
   const $d = id => document.getElementById(id);
 
-  function records(){ S.records ??= {}; return S.records; }
+  // « records2 » : records du barème actuel (les anciens, plus gros, ne sont plus comparables)
+  function records(){ S.records2 ??= {}; return S.records2; }
 
   function sourcePool(){
     const st = S.settings;
@@ -148,25 +151,30 @@
   function answer(k){
     if (!G || G.answered) return;
     G.answered = true; cancelAnimationFrame(G.raf);
-    const q = G.q, ok = k >= 0 && q.opts[k].ok;
-    const left = Math.max(0, G.dur - (performance.now() - G.t0));
-    let gained = 0, mult = 1 + 0.5 * Math.min(4, Math.floor(G.combo / 2));
+    // k : index de la réponse choisie, -1 = temps écoulé, -2 = « Je ne sais pas »
+    const q = G.q, ok = k >= 0 && q.opts[k].ok, skip = k === -2, survie = G.mode === "survie";
+    let label;
     if (ok) {
-      gained = Math.round((100 + 100 * left / G.dur) * mult);
-      G.score += gained; G.combo++; G.correct++; G.bestCombo = Math.max(G.bestCombo, G.combo);
+      const pts = survie ? 1 : 10;
+      G.score += pts; G.combo++; G.correct++; G.bestCombo = Math.max(G.bestCombo, G.combo);
+      label = `+${pts}`;
     } else {
-      G.combo = 0; if (G.mode === "survie") G.lives--;
+      G.combo = 0;
+      if (survie) { G.lives--; label = skip ? "Passé · −1 vie" : k === -1 ? "Temps écoulé · −1 vie" : "Raté · −1 vie"; }
+      else if (skip) { G.skipped = (G.skipped || 0) + 1; label = "Passé · 0"; }
+      else { G.errors = (G.errors || 0) + 1; G.score = Math.max(0, G.score - 5); label = k === -1 ? "Temps écoulé · −5" : "Raté · −5"; }
       if (!G.wrong.includes(q.card)) G.wrong.push(q.card);
     }
     // marque les boutons
-    document.querySelectorAll(".opt").forEach((b, i) => {
+    document.querySelectorAll(".opt[data-k]").forEach((b, i) => {
       b.disabled = true;
       if (q.opts[i].ok) b.classList.add("right"); else if (i === k) b.classList.add("wrong");
     });
+    const sk = $d("opt-skip"); if (sk) { sk.disabled = true; if (skip) sk.classList.add("chosen"); }
     const c = q.card;
     $d("gfb").innerHTML = `
-      <div class="fb ${ok ? "ok" : "ko"}">
-        <b>${ok ? `+${fmt(gained)}${mult > 1 ? ` <small>×${mult}</small>` : ""}` : k < 0 ? "Temps écoulé" : "Raté"}</b>
+      <div class="fb ${ok ? "ok" : skip && !survie ? "skip" : "ko"}">
+        <b>${label}</b>
         <span class="fb-word"><span class="fb-h">${esc(c.h)}</span> ${pinyinHTML(c.p)} · ${esc(c.m)}</span>
       </div>
       <button class="sbtn" id="g-next">Continuer <kbd>Entrée</kbd></button>`;
@@ -221,11 +229,12 @@
   }
 
   function optsHTML(q){
+    const skip = `<button class="opt skip" id="opt-skip"><span>Je ne sais pas</span><kbd>0</kbd></button>`;
     if (q.kind === "tone") return `<div class="opts tones">${q.opts.map((o, i) =>
-      `<button class="opt tone${o.tone}" data-k="${i}" id="opt-${i}"><b>${esc(o.label)}</b><small>${TONE_NAMES[o.tone]} · <kbd>${i + 1}</kbd></small></button>`).join("")}</div>`;
+      `<button class="opt tone${o.tone}" data-k="${i}" id="opt-${i}"><b>${esc(o.label)}</b><small>${TONE_NAMES[o.tone]} · <kbd>${i + 1}</kbd></small></button>`).join("")}${skip}</div>`;
     const cls = q.kind === "m2h" ? "han" : q.kind === "h2p" ? "py" : "";
     return `<div class="opts ${cls}">${q.opts.map((o, i) =>
-      `<button class="opt" data-k="${i}" id="opt-${i}"><span>${esc(o.label)}</span><kbd>${i + 1}</kbd></button>`).join("")}</div>`;
+      `<button class="opt" data-k="${i}" id="opt-${i}"><span>${esc(o.label)}</span><kbd>${i + 1}</kbd></button>`).join("")}${skip}</div>`;
   }
 
   function renderGame(){
@@ -241,7 +250,7 @@
           <div class="end-rec">${daily ? `HSK ${G.preset.level} · <span id="daily-send">${G.preset.status || ""}</span>` : G.isRecord ? "Nouveau record !" : `Record : ${fmt(r.best)}`}</div>
           <div class="end-stats">
             <div><b>${G.correct}</b> bonne${G.correct > 1 ? "s" : ""} réponse${G.correct > 1 ? "s" : ""}${G.mode !== "survie" ? ` sur ${G.i}` : ""}</div>
-            <div><b>${G.bestCombo}</b> de suite au mieux</div>
+            ${G.mode !== "survie" ? `<div><b>${G.errors || 0}</b> erreur${(G.errors || 0) > 1 ? "s" : ""}</div><div><b>${G.skipped || 0}</b> passée${(G.skipped || 0) > 1 ? "s" : ""}</div>` : `<div><b>${G.bestCombo}</b> de suite au mieux</div>`}
             ${G.mode === "survie" && G.decks.length > 1 ? `<div>niveau <b>${G.level}</b> atteint</div>` : ""}
           </div>
           ${G.wrong.length ? `<div class="end-miss"><div class="qlabel">À retravailler</div>${G.wrong.map(c =>
@@ -273,7 +282,8 @@
         <div id="gfb" class="gfb"></div>
         <div class="row" style="justify-content:flex-end"><button class="del" id="g-quit">Abandonner</button></div>
       </div>`;
-    view.querySelectorAll(".opt").forEach(b => b.addEventListener("click", () => answer(+b.dataset.k)));
+    view.querySelectorAll(".opt[data-k]").forEach(b => b.addEventListener("click", () => answer(+b.dataset.k)));
+    $d("opt-skip").addEventListener("click", () => answer(-2));
     $d("g-quit").addEventListener("click", () => { finish(); });
   }
 
@@ -322,6 +332,7 @@
     if (G.done) { if (e.key === "Enter" && !G.error && G.mode !== "quotidien") { e.preventDefault(); start(G.mode); } return; }
     const n = parseInt(e.key, 10);
     if (!G.answered && n >= 1 && n <= G.q.opts.length) { e.preventDefault(); answer(n - 1); }
+    else if (!G.answered && n === 0) { e.preventDefault(); answer(-2); }
     else if (G.answered && (e.key === "Enter" || e.code === "Space")) { e.preventDefault(); next(); }
   });
 

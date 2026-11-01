@@ -312,3 +312,8 @@ label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--mute
 .p-name b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .p-act{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
 .f-today{font-family:var(--f-mono);font-size:13px}
+
+/* Bouton « Je ne sais pas » */
+.opt.skip{grid-column:1/-1;justify-content:center;gap:10px;min-height:44px;padding:10px;font-size:14px;color:var(--muted);background:var(--surface);border-style:dashed}
+.opt.skip.chosen{color:var(--ink);border-style:solid;border-color:var(--muted)}
+.fb.skip b{color:var(--muted)}
