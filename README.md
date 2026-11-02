@@ -15,6 +15,7 @@ Elle fonctionne dans le navigateur, s'installe sur l'écran d'accueil du télép
 | `config.js` | L'adresse et la clé publique du projet Supabase |
 | `defis.js` | Les défis : Éclair, Tons, Survie et le défi du jour |
 | `social.js` | Les amis, la série de jours et le classement du défi du jour |
+| `multi.js` | Les parties en direct entre amis : Course et Phrases (Supabase Realtime) |
 | `supabase-amis.sql` | Le script qui crée les tables des amis et des scores (déjà exécuté) |
 | `sw.js` | Le mode hors connexion |
 | `icons/` | Les icônes |
@@ -78,3 +79,12 @@ Les listes HSK 1 à 4 viennent de l'ancienne version du HSK (HSK 2.0, environ 1 
 - Le **défi du jour** pose 10 questions tirées de la liste HSK choisie. Le tirage dépend de la date et du niveau, donc tout le monde a les mêmes questions. On a un seul essai par jour.
 - **Amis** : chacun crée un profil (pseudo + avatar) dans l'onglet Défis, puis ajoute ses amis par leur pseudo exact. L'autre accepte la demande.
 - Tes amis voient seulement ton pseudo, ton avatar, ta série de jours et tes scores au défi du jour, jamais tes cartes.
+
+## Parties en direct
+
+Dans **Défis → Jouer avec des amis**, un joueur crée une partie et les autres la rejoignent avec un code de 4 caractères. Il faut un compte et un profil de joueur.
+
+- **Course 抢答** : tout le monde voit la même question au même moment. Le premier qui répond juste gagne +10, une erreur coûte −5 et bloque le joueur jusqu'à la question suivante. Le premier à 100 points gagne (30 questions au maximum).
+- **Phrases 造句** : tout le monde reçoit les mêmes tuiles (20, 30, 40 ou 50). On a 2 minutes pour former des phrases, et chaque tuile ne sert qu'une fois. Une phrase validée rapporte le nombre de caractères au carré. Le créateur de la partie valide ou refuse les phrases. La partie se joue en 3 manches.
+
+Ces parties passent par les canaux temps réel de Supabase (Realtime), sans table supplémentaire. Le créateur de la partie la fait tourner : s'il la quitte, la partie s'arrête pour tout le monde.

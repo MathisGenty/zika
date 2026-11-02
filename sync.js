@@ -50,7 +50,7 @@
     const ld = L.daily, rd = R.daily;
     const daily = !ld ? rd : !rd ? ld : ld.day !== rd.day ? (ld.day > rd.day ? ld : rd) : (ld.score >= rd.score ? ld : rd);
     return { cards, deleted: del, settings: lMod >= rMod ? L.settings : R.settings,
-             settingsMod: Math.max(lMod, rMod), newLog, records, records2, activity, daily, owner: L.owner };
+             settingsMod: Math.max(lMod, rMod), newLog, records, records2, activity, daily, multi: (L.multi || R.multi) && { played: Math.max(L.multi?.played || 0, R.multi?.played || 0), wins: Math.max(L.multi?.wins || 0, R.multi?.wins || 0) }, owner: L.owner };
   }
 
   // JSON avec les clés triées : la base réordonne les clés, il faut comparer le contenu

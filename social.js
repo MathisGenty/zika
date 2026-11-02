@@ -250,11 +250,12 @@
 
   function paint(){
     if (tab !== "defis" || window.zikaDefi?.isPlaying()) return;
-    paintDaily(); paintFriends();
+    paintDaily(); paintFriends(); window.zikaMulti?.renderEntry();
   }
 
   /* appelé par renderDefis() : affiche tout de suite ce qu'on a, puis recharge (au plus toutes les 20 s) */
   let lastLoad = 0;
+  window.zikaSocial = { me: () => SOC.me, loaded: () => SOC.loaded, load };
   window.renderSocial = () => {
     paint();
     if (me() && Date.now() - lastLoad > 20000) { lastLoad = Date.now(); load(); }

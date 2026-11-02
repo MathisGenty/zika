@@ -289,6 +289,7 @@
 
   function renderDefis(){
     if (G) return renderGame();
+    if (window.zikaMulti?.active()) return window.zikaMulti.render();
     const view = document.getElementById("view"), st = S.settings, R = records();
     const ds = decks(), pool = sourcePool();
     const toneable = pool.filter(c => sylls(c.p).length === [...c.h].length).length;
@@ -296,6 +297,7 @@
     view.innerHTML = `
       <div style="display:flex;flex-direction:column;gap:16px">
       <section class="panel" id="daily"></section>
+      <section class="panel" id="multi-entry"></section>
       <section class="panel">
         <h2>Défis</h2>
         <div class="row" style="align-items:end">
@@ -324,6 +326,7 @@
     $d("d-seen").addEventListener("change", e => { st.defiSeen = e.target.checked; saveSettings(); renderDefis(); });
     view.querySelectorAll(".mode").forEach(b => b.addEventListener("click", () => start(b.dataset.mode)));
     window.renderSocial?.();
+    window.zikaMulti?.renderEntry();
   }
 
   /* ---------- Clavier ---------- */
