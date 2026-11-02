@@ -175,7 +175,7 @@
     $d("gfb").innerHTML = `
       <div class="fb ${ok ? "ok" : skip && !survie ? "skip" : "ko"}">
         <b>${label}</b>
-        <span class="fb-word"><span class="fb-h">${esc(c.h)}</span> ${pinyinHTML(c.p)} · ${esc(c.m)}</span>
+        <span class="fb-word"><span class="fb-h">${hz(c.h)}</span> ${pinyinHTML(c.p)} · ${esc(c.m)}</span>
       </div>
       <button class="sbtn" id="g-next">Continuer <kbd>Entrée</kbd></button>`;
     $d("g-next").addEventListener("click", next);
@@ -223,7 +223,7 @@
     if (q.kind === "h2m") return `<div class="qlabel">Que veut dire ce mot ?</div>${hanziHTML(c.h, c.p, false)}`;
     // ton
     const sy = sylls(c.p);
-    const cells = [...c.h].map((ch, i) => `<div class="cell ${i === q.idx ? "target" : ""}"><span>${esc(ch)}</span></div>`).join("");
+    const cells = [...(script() === "trad" ? toTrad(c.h) : c.h)].map((ch, i) => `<div class="cell ${i === q.idx ? "target" : ""}"><span>${esc(ch)}</span></div>`).join("");
     const py = sy.map((s, i) => i === q.idx ? `<span class="blank">${esc(stripTone(s))}</span>` : `<span class="tone${toneOf(s)}">${esc(s)}</span>`).join(" ");
     return `<div class="qlabel">Quel est le ton de la syllabe soulignée ?</div><div class="hanzi">${cells}</div><div class="pinyin">${py}</div><div class="note">${esc(c.m)}</div>`;
   }
@@ -234,7 +234,7 @@
       `<button class="opt tone${o.tone}" data-k="${i}" id="opt-${i}"><b>${esc(o.label)}</b><small>${TONE_NAMES[o.tone]} · <kbd>${i + 1}</kbd></small></button>`).join("")}${skip}</div>`;
     const cls = q.kind === "m2h" ? "han" : q.kind === "h2p" ? "py" : "";
     return `<div class="opts ${cls}">${q.opts.map((o, i) =>
-      `<button class="opt" data-k="${i}" id="opt-${i}"><span>${esc(o.label)}</span><kbd>${i + 1}</kbd></button>`).join("")}${skip}</div>`;
+      `<button class="opt" data-k="${i}" id="opt-${i}"><span>${q.kind === "m2h" ? hz(o.label) : esc(o.label)}</span><kbd>${i + 1}</kbd></button>`).join("")}${skip}</div>`;
   }
 
   function renderGame(){
@@ -254,7 +254,7 @@
             ${G.mode === "survie" && G.decks.length > 1 ? `<div>niveau <b>${G.level}</b> atteint</div>` : ""}
           </div>
           ${G.wrong.length ? `<div class="end-miss"><div class="qlabel">À retravailler</div>${G.wrong.map(c =>
-            `<div class="miss"><span class="fb-h">${esc(c.h)}</span><span>${pinyinHTML(c.p)}</span><span class="note">${esc(c.m)}</span></div>`).join("")}
+            `<div class="miss"><span class="fb-h">${hz(c.h)}</span><span>${pinyinHTML(c.p)}</span><span class="note">${esc(c.m)}</span></div>`).join("")}
             ${back ? `<div class="note">${back} mot${back > 1 ? "s" : ""} déjà étudié${back > 1 ? "s" : ""} revien${back > 1 ? "nent" : "t"} dès maintenant dans ta révision.</div>` : ""}</div>` : ""}
           <div class="row" style="justify-content:center">
             ${daily ? `<button class="sbtn accent" id="g-home">Voir le classement</button>` : `<button class="sbtn" id="g-home">Autres défis</button>

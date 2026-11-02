@@ -357,3 +357,7 @@ label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--mute
 .sbtn.danger-on{background:var(--again);color:var(--accent-ink);border-color:var(--again)}
 .m-verdict{font-size:13px;color:var(--muted)}
 .btn:disabled{opacity:.55;cursor:default}
+
+/* Écriture traditionnelle */
+.trad-sub{font-family:var(--f-han);font-size:clamp(22px,6vw,30px);color:var(--muted);letter-spacing:.25em;margin-top:-6px;padding-left:.25em}
+.trad-alt{font-size:.62em;color:var(--muted);margin-left:.35em;font-weight:400}

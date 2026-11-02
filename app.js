@@ -17,7 +17,7 @@ const SEED = [["你好","nǐ hǎo","bonjour"],["谢谢","xiè xie","merci"],["�
 const KEY = "zika-v1";
 const DAY = 864e5;
 let S;
-const APP_VERSION="2026-11-02 · 18:20"; // à changer à chaque mise à jour pour vérifier qu'elle est bien arrivée
+const APP_VERSION="2026-11-02 · 19:00"; // à changer à chaque mise à jour pour vérifier qu'elle est bien arrivée
 const DEFAULT_DECK="HSK 1 · départ";
 /* Chaque carte a un champ "mod" (date de dernière modification) et les cartes supprimées
    laissent une trace dans S.deleted : c'est ce qui permet de fusionner deux appareils (sync.js). */
@@ -55,8 +55,37 @@ const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"
 function sylls(p){return p.split(/[\s']+/).filter(Boolean)}
 function pinyinHTML(p){return sylls(p).map(s=>`<span class="tone${toneOf(s)}">${esc(s)}</span>`).join(" ")}
 function hanziHTML(h,p,colored,cls=""){
-  const chars=[...h], sy=sylls(p), match=sy.length===chars.length;
-  return `<div class="hanzi ${cls}">`+chars.map((c,i)=>`<div class="cell"><span class="${colored&&match?"tone"+toneOf(sy[i]):""}">${esc(c)}</span></div>`).join("")+`</div>`;
+  const sc=script(), t=sc==="simp"?h:toTrad(h), show=sc==="trad"?t:h;
+  const chars=[...show], sy=sylls(p), match=sy.length===chars.length;
+  return `<div class="hanzi ${cls}">`+chars.map((c,i)=>`<div class="cell"><span class="${colored&&match?"tone"+toneOf(sy[i]):""}">${esc(c)}</span></div>`).join("")+`</div>`
+    +(sc==="both"&&t!==h?`<div class="trad-sub" title="Traditionnel">${esc(t)}</div>`:"");
+}
+
+/* ---------- Écriture : simplifié 简体, traditionnel 繁體, ou les deux ----------
+   Les cartes restent enregistrées en simplifié ; la conversion se fait à l'affichage
+   avec decks/trad.json (tables OpenCC, normes de Taïwan) : d'abord les expressions,
+   pour les caractères ambigus (头发 → 頭髮, 发现 → 發現), puis caractère par caractère. */
+let TRAD=null, tradLoading=false;
+const script=()=>S.settings.script||"simp";
+function loadTrad(){
+  if(TRAD||tradLoading) return; tradLoading=true;
+  fetch("decks/trad.json").then(r=>r.json()).then(d=>{TRAD=d; render()}).catch(()=>{tradLoading=false});
+}
+function toTrad(s){
+  if(!TRAD||!s) return s;
+  const cs=[...s]; let out="";
+  for(let i=0;i<cs.length;){
+    let hit=false;
+    for(let L=Math.min(4,cs.length-i);L>=2;L--){ const w=cs.slice(i,i+L).join(""); if(TRAD.w[w]){out+=TRAD.w[w]; i+=L; hit=true; break} }
+    if(!hit){ out+=TRAD.c[cs[i]]||cs[i]; i++ }
+  }
+  return out;
+}
+// texte en hanzi prêt à afficher, selon l'écriture choisie
+function hz(s){
+  const sc=script(); if(sc==="simp") return esc(s);
+  const t=toTrad(s); if(sc==="trad") return esc(t);
+  return t===s?esc(s):`${esc(s)}<span class="trad-alt">${esc(t)}</span>`;
 }
 
 /* ---------- Répétition espacée (SM-2 simplifié) ---------- */
@@ -130,11 +159,12 @@ function applyLook(){
   const st=S.settings, root=document.documentElement;
   root.dataset.style=st.style||"jade";
   root.dataset.hanfont=st.hanfont||"song";
+  if(script()!=="simp") loadTrad();
   const fam=HANFONTS[st.hanfont];
   if(fam&&!loadedFonts.has(fam)){loadedFonts.add(fam); const l=document.createElement("link"); l.rel="stylesheet"; l.href=`https://fonts.googleapis.com/css2?family=${fam}&display=swap`; document.head.append(l)}
   // caractère du jour : tiré de tes cartes, le même toute la journée
   const chars=[...new Set(S.cards.flatMap(c=>[...c.h]).filter(ch=>/\p{Script=Han}/u.test(ch)))];
-  if(chars.length){let h=0; for(const ch of today()) h=(h*31+ch.charCodeAt(0))>>>0; root.style.setProperty("--daychar",`"${chars[h%chars.length]}"`)}
+  if(chars.length){let h=0; for(const ch of today()) h=(h*31+ch.charCodeAt(0))>>>0; root.style.setProperty("--daychar",`"${script()==="trad"?toTrad(chars[h%chars.length]):chars[h%chars.length]}"`)}
 }
 function sealChar(deck){
   const m=String(deck).match(/HSK\s*(\d)/i); if(m) return "零壹贰叁肆伍陆柒捌玖"[+m[1]]||"汉";
@@ -299,7 +329,7 @@ function drawList(){
   const items=S.cards.filter(c=>(!listDeck||c.deck===listDeck)&&(!q||(c.h+c.p+c.m).toLowerCase().includes(q)));
   $("#list").innerHTML=items.map(c=>{
     const st=c.isNew?"nouvelle":c.due<=now?"à réviser":"dans "+Math.max(1,Math.round((c.due-now)/DAY))+" j";
-    return `<div class="item"><div class="h">${esc(c.h)}</div><div class="m"><div>${pinyinHTML(c.p)}</div><div>${esc(c.m)}${listDeck?"":` · <i>${esc(c.deck)}</i>`}</div></div>
+    return `<div class="item"><div class="h">${hz(c.h)}</div><div class="m"><div>${pinyinHTML(c.p)}</div><div>${esc(c.m)}${listDeck?"":` · <i>${esc(c.deck)}</i>`}</div></div>
       <div class="due">${st}<button class="del" data-id="${c.id}">Supprimer</button></div></div>`}).join("")||`<div class="note">Aucune carte ne correspond.</div>`;
   $("#list").querySelectorAll(".del").forEach(b=>b.addEventListener("click",()=>{
     if(!b.classList.contains("armed")){b.classList.add("armed");b.textContent="Confirmer ?";setTimeout(()=>{b.classList.remove("armed");b.textContent="Supprimer"},3000);return}
@@ -315,6 +345,8 @@ function renderSettings(){
       ${[["jade","Jade et vagues","Vert jade, motif de vagues 海水纹"],["encre","Encre et papier","Papier de riz, encre et vermillon"],["cahier","Cahier d'écolier","Feuille quadrillée 田字格, encre bleue"]].map(([k,n,d])=>
         `<button class="style-opt" role="radio" aria-checked="${(st.style||"jade")===k}" data-style-opt="${k}" id="style-${k}"><span class="sw" data-sw="${k}"><b>字</b><i></i></span><span><b>${n}</b><small>${d}</small></span></button>`).join("")}
     </div>
+    <label>Écriture<select id="s-script">
+      <option value="simp">Simplifié 简体</option><option value="trad">Traditionnel 繁體</option><option value="both">Les deux (traditionnel en dessous)</option></select></label>
     <label>Police des caractères<select id="s-font">
       <option value="song">Song 宋体 (imprimé, par défaut)</option><option value="sans">Hei 黑体 (bâton, comme sur écran)</option><option value="pinceau">Pinceau 楷书 (écrit à la main)</option></select></label>
   </section>
@@ -343,6 +375,8 @@ function renderSettings(){
   <div class="note" style="text-align:center">Version ${APP_VERSION}</div></div>`;
   $("#s-dir").value=st.dir;
   $("#s-font").value=st.hanfont||"song";
+  $("#s-script").value=script();
+  $("#s-script").addEventListener("change",e=>{st.script=e.target.value;saveSettings();applyLook()});
   $("#s-font").addEventListener("change",e=>{st.hanfont=e.target.value;saveSettings();applyLook()});
   view.querySelectorAll("[data-style-opt]").forEach(b=>b.addEventListener("click",()=>{st.style=b.dataset.styleOpt;saveSettings();applyLook();
     view.querySelectorAll("[data-style-opt]").forEach(x=>x.setAttribute("aria-checked",x===b))}));

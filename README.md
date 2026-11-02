@@ -19,7 +19,7 @@ Elle fonctionne dans le navigateur, s'installe sur l'écran d'accueil du télép
 | `supabase-amis.sql` | Le script qui crée les tables des amis et des scores (déjà exécuté) |
 | `sw.js` | Le mode hors connexion |
 | `icons/` | Les icônes |
-| `decks/` | La bibliothèque de paquets prêts à l'emploi (HSK 1 à 4) |
+| `decks/` | La bibliothèque de paquets prêts à l'emploi (HSK 1 à 4), et `trad.json` pour la conversion en traditionnel |
 
 ## Mise en ligne avec GitHub Pages (une seule fois)
 
@@ -88,3 +88,8 @@ Dans **Défis → Jouer avec des amis**, un joueur crée une partie et les autre
 - **Phrases 造句** : tout le monde reçoit les mêmes tuiles (20, 30, 40 ou 50). On a 2 minutes pour former des phrases, et chaque tuile ne sert qu'une fois. Une phrase validée rapporte le nombre de caractères au carré. Le créateur de la partie valide ou refuse les phrases. La partie se joue en 3 manches.
 
 Ces parties passent par les canaux temps réel de Supabase (Realtime), sans table supplémentaire. Le créateur de la partie la fait tourner : s'il la quitte, la partie s'arrête pour tout le monde.
+
+## Écriture traditionnelle
+
+**Réglages → Apparence → Écriture** propose trois choix : simplifié, traditionnel, ou les deux (le traditionnel s'affiche en dessous quand il diffère).
+Les cartes restent enregistrées en simplifié et sont converties à l'affichage avec `decks/trad.json`. Ces tables viennent du projet OpenCC (licence Apache 2.0) et suivent les normes de Taïwan. Les expressions sont converties avant les caractères isolés, ce qui gère les cas ambigus : 头发 → 頭髮, 发现 → 發現, 以后 → 以後.

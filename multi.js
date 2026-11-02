@@ -23,6 +23,7 @@
   const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; };
   const fmt = n => n.toLocaleString("fr-FR");
   const user = () => window.zika?.user?.();
+  const tileChar = ch => script() === "trad" ? toTrad(ch) : ch;
   const profile = () => window.zikaSocial?.me?.();
 
   /* ---------- Transport temps réel (Supabase, ou faux canal local pour les tests) ---------- */
@@ -349,9 +350,9 @@
       ${scoreboard(true)}
       <div class="card gq">${prompt}</div>
       <div class="opts ${cls}">${q.opts.map((o, i) => `<button class="opt ${rev && i === rev.ok ? "right" : ""} ${rev && i === M.myAns?.[R.qi] && i !== rev.ok ? "wrong" : ""} ${!rev && locked && i === M.myAns?.[R.qi] ? "wrong" : ""}"
-        data-k="${i}" ${rev || locked ? "disabled" : ""}><span>${esc2(o)}</span><kbd>${i + 1}</kbd></button>`).join("")}</div>
+        data-k="${i}" ${rev || locked ? "disabled" : ""}><span>${q.kind === "m2h" ? hz(o) : esc2(o)}</span><kbd>${i + 1}</kbd></button>`).join("")}</div>
       <div class="gfb">${rev ? `<div class="fb ${rev.winner === M.meId ? "ok" : "skip"}"><b>${winner ? (rev.winner === M.meId ? "Bravo, +10 !" : `${esc2(winner.pseudo)} a trouvé`) : "Personne n'a trouvé"}</b>
-        <span class="fb-word"><span class="fb-h">${esc2(c.h)}</span> ${pinyinHTML(c.p)} · ${esc2(c.m)}</span></div>`
+        <span class="fb-word"><span class="fb-h">${hz(c.h)}</span> ${pinyinHTML(c.p)} · ${esc2(c.m)}</span></div>`
         : locked ? `<div class="fb ko"><b>Raté · −5</b><span class="note">Tu es bloqué jusqu'à la question suivante.</span></div>` : ""}</div>
       <div class="row" style="justify-content:flex-end"><button class="del" id="m-leave">Quitter la partie</button></div>
     </div>`;
@@ -365,17 +366,17 @@
 
   function renderWrite(view, R){
     const my = M.my, used = new Set([...my.sents.flat(), ...my.cur]);
-    const sentHTML = (s, i) => `<div class="m-sent"><span class="m-hz">${s.map(k => esc2(R.tiles[k])).join("")}</span>
+    const sentHTML = (s, i) => `<div class="m-sent"><span class="m-hz">${hz(s.map(k => R.tiles[k]).join(""))}</span>
       <span class="m-pts">${s.length}² = ${s.length * s.length}</span><button class="del" data-del="${i}" aria-label="Retirer cette phrase">Retirer</button></div>`;
     const total = my.sents.reduce((t, s) => t + s.length * s.length, 0);
     view.innerHTML = `<div class="game">
       ${header()}
       <div class="timer"><i id="tbar"></i></div>
       <div class="row" style="justify-content:space-between;align-items:center"><span class="qlabel">Forme des phrases avec ces tuiles</span><b id="m-time" class="m-time"></b></div>
-      <div class="m-tiles">${R.tiles.map((ch, i) => `<button class="m-tile" data-i="${i}" ${used.has(i) ? "disabled" : ""}><span>${esc2(ch)}</span><small>${esc2(R.py[ch] || "")}</small></button>`).join("")}</div>
+      <div class="m-tiles">${R.tiles.map((ch, i) => `<button class="m-tile" data-i="${i}" ${used.has(i) ? "disabled" : ""}><span>${esc2(tileChar(ch))}</span><small>${esc2(R.py[ch] || "")}</small></button>`).join("")}</div>
       <div class="card m-cur">
         <div class="qlabel">Phrase en cours${my.cur.length ? ` · ${my.cur.length} caractère${my.cur.length > 1 ? "s" : ""} = ${my.cur.length * my.cur.length} pts` : ""}</div>
-        <div class="m-curline">${my.cur.length ? my.cur.map((k, j) => `<button class="m-tile in" data-j="${j}">${esc2(R.tiles[k])}</button>`).join("") : `<span class="note">Touche des tuiles pour écrire. Touche une tuile ici pour la retirer.</span>`}</div>
+        <div class="m-curline">${my.cur.length ? my.cur.map((k, j) => `<button class="m-tile in" data-j="${j}">${esc2(tileChar(R.tiles[k]))}</button>`).join("") : `<span class="note">Touche des tuiles pour écrire. Touche une tuile ici pour la retirer.</span>`}</div>
         <div class="row" style="justify-content:flex-end">
           <button class="sbtn" id="m-clear" ${my.cur.length ? "" : "disabled"}>Effacer</button>
           <button class="sbtn accent" id="m-add" ${my.cur.length >= 2 ? "" : "disabled"}>Garder cette phrase</button>
@@ -405,7 +406,7 @@
         ${sents.length ? sents.map((s, i) => {
           const key = p.id + "|" + i, v = R.verdicts[key];
           return `<div class="m-sent judge ${v === true ? "yes" : v === false ? "no" : ""}">
-            <span class="m-hz">${s.map(k => esc2(R.tiles[k])).join("")}</span><span class="m-pts">${s.length}² = ${s.length * s.length}</span>
+            <span class="m-hz">${hz(s.map(k => R.tiles[k]).join(""))}</span><span class="m-pts">${s.length}² = ${s.length * s.length}</span>
             ${M.isHost ? `<span class="m-vote"><button class="sbtn ${v === true ? "accent" : ""}" data-v="${key}|1" aria-label="Valider">✓</button><button class="sbtn ${v === false ? "danger-on" : ""}" data-v="${key}|0" aria-label="Refuser">✗</button></span>`
               : `<span class="m-verdict">${v === true ? "validée" : v === false ? "refusée" : "…"}</span>`}</div>`;
         }).join("") : `<div class="note">Aucune phrase.</div>`}</section>`;
