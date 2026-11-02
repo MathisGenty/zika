@@ -182,7 +182,7 @@
     $d("g-score").textContent = fmt(G.score);
     $d("g-combo").textContent = G.combo >= 2 ? `série ${G.combo}` : "";
     if (G.mode === "survie") $d("g-prog").innerHTML = livesHTML();
-    if (q.kind === "tone" || q.kind === "h2p") speak(c.h);
+    speak(c.h); // prononce toujours le mot quand la bonne réponse s'affiche en vert
     later(next, ok ? 1100 : 2600);
   }
 
