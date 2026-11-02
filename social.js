@@ -30,7 +30,7 @@
         const ids = [...new Set(SOC.links.flatMap(l => [l.requester, l.addressee]))].filter(id => id !== u.id);
         SOC.people = { [u.id]: SOC.me };
         if (ids.length) {
-          const { data: ppl } = await sb().from("profiles").select("id,pseudo,avatar,streak,last_active").in("id", ids);
+          const { data: ppl } = await sb().from("profiles").select("*").in("id", ids);
           for (const p of ppl || []) SOC.people[p.id] = p;
         }
         const { data: sc } = await sb().from("daily_scores").select("user_id,day,level,score,correct").gte("day", monday());
@@ -41,6 +41,9 @@
         SOC.scores.week = Object.entries(week).map(([user_id, score]) => ({ user_id, score }));
         pushStreak();
         submitPending();
+        const pub = window.zikaBadges?.publicProfile();
+        if (pub && (SOC.me.badge_count !== pub.badge_count || SOC.me.title !== pub.title || SOC.me.color !== pub.color
+            || JSON.stringify(SOC.me.showcase || []) !== JSON.stringify(pub.showcase))) updateProfile(pub);
       }
       SOC.loaded = true; SOC.error = null;
     } catch (e) {
@@ -105,6 +108,8 @@
     if (!SOC.loaded) return `<div class="note">${SOC.error || "Chargement du classement…"}</div>`;
     if (!SOC.me) return `<div class="note">Choisis ton pseudo plus bas pour apparaître dans le classement.</div>`;
     const rows = SOC.scores[SOC.board].slice().sort((a, b) => b.score - a.score);
+    const todayRows = SOC.scores.day;
+    if (todayRows.length >= 2 && todayRows.every(r => r.user_id === u.id || r.score <= (todayRows.find(x => x.user_id === u.id)?.score ?? -1))) window.zikaBadges?.onDailyTop();
     const shown = new Set(rows.map(r => r.user_id));
     // en vue « aujourd'hui », les amis qui n'ont pas encore joué apparaissent en bas
     if (SOC.board === "day") for (const p of [SOC.me, ...friends()]) if (!shown.has(p.id)) rows.push({ user_id: p.id, score: null });
@@ -112,8 +117,8 @@
       const p = SOC.people[r.user_id] || { pseudo: "?", avatar: "?" };
       return `<div class="lb-row ${r.user_id === u.id ? "me" : ""}">
         <span class="lb-rank">${r.score === null ? "–" : i + 1}</span>
-        <span class="avatar sm">${esc2(p.avatar)}</span>
-        <span class="lb-name">${esc2(p.pseudo)}${r.level ? ` <small>HSK ${r.level}</small>` : ""}</span>
+        <span class="avatar sm av-${esc2(p.color || "jade")}">${esc2(p.avatar)}</span>
+        <span class="lb-name">${esc2(p.pseudo)} ${window.zikaBadges?.miniShowcase(p) || ""}${r.level ? ` <small>HSK ${r.level}</small>` : ""}</span>
         <span class="lb-score">${r.score === null ? `<small>pas encore joué</small>` : fmt(r.score)}</span>
       </div>`;
     }).join("");
@@ -165,8 +170,8 @@
     const linkOf = id => SOC.links.find(l => (l.requester === id || l.addressee === id) && l.status === "accepted");
     box.innerHTML = `
       <h2>Amis</h2>
-      <div class="me-line"><span class="avatar">${esc2(SOC.me.avatar)}</span>
-        <div><b>${esc2(SOC.me.pseudo)}</b><div class="note">${streak() ? `${streak()} jour${streak() > 1 ? "s" : ""} de suite` : "Révise ou joue aujourd'hui pour lancer ta série"}</div></div></div>
+      <div class="me-line"><span class="avatar av-${esc2(SOC.me.color || "jade")}">${esc2(SOC.me.avatar)}</span>
+        <div><b>${esc2(SOC.me.pseudo)}</b>${SOC.me.title ? ` <span class="b-title">${esc2(window.zikaBadges?.titleOf(SOC.me.title) || "")}</span>` : ""}<div class="note">${streak() ? `${streak()} jour${streak() > 1 ? "s" : ""} de suite` : "Révise ou joue aujourd'hui pour lancer ta série"}</div></div></div>
       <form class="row" id="add-form" style="align-items:end">
         <label>Ajouter un ami<input type="text" id="add-pseudo" placeholder="Son pseudo exact" autocomplete="off"></label>
         <button class="sbtn accent" style="flex:0 0 auto">Envoyer une demande</button>
@@ -194,8 +199,9 @@
 
   function personRow(p, actions, sub){
     p ||= { pseudo: "?", avatar: "?" };
-    return `<div class="person"><span class="avatar sm">${esc2(p.avatar)}</span>
-      <div class="p-name"><b>${esc2(p.pseudo)}</b>${sub ? `<div class="note">${sub}</div>` : ""}</div>
+    const t = p.title ? window.zikaBadges?.titleOf(p.title) : "";
+    return `<div class="person"><span class="avatar sm av-${esc2(p.color || "jade")}">${esc2(p.avatar)}</span>
+      <div class="p-name"><b>${esc2(p.pseudo)} ${window.zikaBadges?.miniShowcase(p) || ""}</b>${t ? `<div class="b-title">${esc2(t)}${p.badge_count ? ` · ${p.badge_count} badge${p.badge_count > 1 ? "s" : ""}` : ""}</div>` : ""}${sub ? `<div class="note">${sub}</div>` : ""}</div>
       <div class="p-act">${actions}</div></div>`;
   }
 
@@ -255,7 +261,14 @@
 
   /* appelé par renderDefis() : affiche tout de suite ce qu'on a, puis recharge (au plus toutes les 20 s) */
   let lastLoad = 0;
-  window.zikaSocial = { me: () => SOC.me, loaded: () => SOC.loaded, load };
+  // profil public (titre, vitrine, couleur, nombre de badges) : colonnes ajoutées par supabase-badges.sql
+  async function updateProfile(pub){
+    if (!SOC.me) return;
+    const { error } = await sb().from("profiles").update(pub).eq("id", SOC.me.id);
+    if (!error) Object.assign(SOC.me, pub);
+    if (tab === "defis" && !window.zikaDefi?.isPlaying() && !window.zikaMulti?.active()) paintFriends();
+  }
+  window.zikaSocial = { me: () => SOC.me, loaded: () => SOC.loaded, load, updateProfile };
   window.renderSocial = () => {
     paint();
     if (me() && Date.now() - lastLoad > 20000) { lastLoad = Date.now(); load(); }

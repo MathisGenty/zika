@@ -14,6 +14,16 @@
   let applying = false; // vrai pendant qu'on applique des données venues du serveur
 
   /* ---------- Fusion de deux états ---------- */
+  // badges : on garde tous ceux gagnés sur l'un ou l'autre appareil, avec la date la plus ancienne
+  function mergeBadges(a = {}, b = {}){
+    const out = { ...b };
+    for (const [k, t] of Object.entries(a)) out[k] = out[k] ? Math.min(out[k], t) : t;
+    return out;
+  }
+  function mergeBstats(a = {}, b = {}){
+    return { ecPerfect: Math.max(a.ecPerfect || 0, b.ecPerfect || 0), tnPerfect: Math.max(a.tnPerfect || 0, b.tnPerfect || 0),
+             dailyDays: [...new Set([...(a.dailyDays || []), ...(b.dailyDays || [])])].sort().slice(-400) };
+  }
   function merge(L, R){
     const del = {...(R.deleted||{})};
     for (const [id,t] of Object.entries(L.deleted||{})) del[id] = Math.max(del[id]||0, t);
@@ -50,7 +60,9 @@
     const ld = L.daily, rd = R.daily;
     const daily = !ld ? rd : !rd ? ld : ld.day !== rd.day ? (ld.day > rd.day ? ld : rd) : (ld.score >= rd.score ? ld : rd);
     return { cards, deleted: del, settings: lMod >= rMod ? L.settings : R.settings,
-             settingsMod: Math.max(lMod, rMod), newLog, records, records2, activity, daily, multi: (L.multi || R.multi) && { played: Math.max(L.multi?.played || 0, R.multi?.played || 0), wins: Math.max(L.multi?.wins || 0, R.multi?.wins || 0) }, owner: L.owner };
+             settingsMod: Math.max(lMod, rMod), newLog, records, records2, activity, daily, badges: mergeBadges(L.badges, R.badges), bstats: mergeBstats(L.bstats, R.bstats),
+             profile: (L.profile?.mod || 0) >= (R.profile?.mod || 0) ? L.profile : R.profile,
+             multi: (L.multi || R.multi) && { played: Math.max(L.multi?.played || 0, R.multi?.played || 0), wins: Math.max(L.multi?.wins || 0, R.multi?.wins || 0) }, owner: L.owner };
   }
 
   // JSON avec les clés triées : la base réordonne les clés, il faut comparer le contenu

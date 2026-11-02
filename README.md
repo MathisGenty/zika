@@ -16,6 +16,8 @@ Elle fonctionne dans le navigateur, s'installe sur l'écran d'accueil du télép
 | `defis.js` | Les défis : Éclair, Tons, Survie et le défi du jour |
 | `social.js` | Les amis, la série de jours et le classement du défi du jour |
 | `multi.js` | Les parties en direct entre amis : Course et Phrases (Supabase Realtime) |
+| `badges.js` | Les 34 badges, la vitrine, le titre et la couleur du profil |
+| `supabase-badges.sql` | Ajoute au profil public le titre, la vitrine, la couleur et le nombre de badges (à exécuter une fois) |
 | `supabase-amis.sql` | Le script qui crée les tables des amis et des scores (déjà exécuté) |
 | `sw.js` | Le mode hors connexion |
 | `icons/` | Les icônes |
@@ -93,3 +95,11 @@ Ces parties passent par les canaux temps réel de Supabase (Realtime), sans tabl
 
 **Réglages → Apparence → Écriture** propose trois choix : simplifié, traditionnel, ou les deux (le traditionnel s'affiche en dessous quand il diffère).
 Les cartes restent enregistrées en simplifié et sont converties à l'affichage avec `decks/trad.json`. Ces tables viennent du projet OpenCC (licence Apache 2.0) et suivent les normes de Taïwan. Les expressions sont converties avant les caractères isolés, ce qui gère les cas ambigus : 头发 → 頭髮, 发现 → 發現, 以后 → 以後.
+
+## Badges et profil
+
+Il y a 34 badges, sur 4 niveaux : bronze 铜, argent 银, or 金 et jade 玉. Ils couvrent la Survie, Éclair, Tons, le défi du jour, les parties en direct, la régularité, le vocabulaire, plus 4 badges secrets. Ils se débloquent automatiquement, avec une notification. Ils sont enregistrés dans tes données et synchronisés avec ton compte.
+
+Dans **Défis → Mes badges → Personnaliser mon profil**, tu choisis un titre (le nom d'un badge gagné), une vitrine de 3 badges et la couleur de ton avatar. Tes amis voient ton titre, ta vitrine et ton nombre de badges.
+
+La liste des badges et leurs conditions se trouvent en haut de `badges.js`.

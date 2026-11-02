@@ -157,9 +157,12 @@
     if (ok) {
       const pts = survie ? 1 : 10;
       G.score += pts; G.combo++; G.correct++; G.bestCombo = Math.max(G.bestCombo, G.combo);
+      G.errRun = 0; if (G.lives === 3) G.noHit = G.correct; // (badges) série sans perdre de vie
       label = `+${pts}`;
     } else {
+      if (G.combo === 8) G.lucky = true; // (badges) exactement 8 bonnes réponses d'affilée
       G.combo = 0;
+      if (!skip) { G.errRun = (G.errRun || 0) + 1; G.maxErrRun = Math.max(G.maxErrRun || 0, G.errRun); }
       if (survie) { G.lives--; label = skip ? "Passé · −1 vie" : k === -1 ? "Temps écoulé · −1 vie" : "Raté · −1 vie"; }
       else if (skip) { G.skipped = (G.skipped || 0) + 1; label = "Passé · 0"; }
       else { G.errors = (G.errors || 0) + 1; G.score = Math.max(0, G.score - 5); label = k === -1 ? "Temps écoulé · −5" : "Raté · −5"; }
@@ -207,6 +210,8 @@
       for (const w of G.wrong) for (const c of S.cards) if (c.h === w.h && !c.isNew) { c.due = Math.min(c.due, now); c.mod = now; G.back++; }
       markActive();
       G.preset?.onFinish?.(G);
+      window.zikaBadges?.onGame({ mode: G.mode, score: G.score, correct: G.correct, noHit: G.noHit || 0,
+        maxErrRun: G.maxErrRun || 0, lucky: G.lucky || G.combo === 8 });
       save();
     }
     G.done = true; G.isRecord = isRecord;
@@ -321,12 +326,14 @@
       </div>
       <div class="note" style="text-align:center">Les mots ratés pendant un défi reviennent dans ta révision.</div>
       <section class="panel" id="friends"></section>
+      <section class="panel" id="badges"></section>
       </div>`;
     $d("d-deck").addEventListener("change", e => { st.defiDeck = e.target.value; saveSettings(); renderDefis(); });
     $d("d-seen").addEventListener("change", e => { st.defiSeen = e.target.checked; saveSettings(); renderDefis(); });
     view.querySelectorAll(".mode").forEach(b => b.addEventListener("click", () => start(b.dataset.mode)));
     window.renderSocial?.();
     window.zikaMulti?.renderEntry();
+    window.zikaBadges?.paintPanel();
   }
 
   /* ---------- Clavier ---------- */

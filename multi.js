@@ -71,7 +71,7 @@
     return {
       code, hostId: me.id, game, level: opts.level, nTiles: opts.nTiles || 30,
       phase: "lobby", seq: 0, endsIn: 0,
-      players: { [me.id]: { pseudo: me.pseudo, avatar: me.avatar, score: 0, online: true } },
+      players: { [me.id]: { pseudo: me.pseudo, avatar: me.avatar, color: me.color, score: 0, online: true } },
       // course
       qi: 0, q: null, locked: [], reveal: null,
       // phrases
@@ -88,7 +88,7 @@
 
   function hostAction(from, a){
     const R = M.R;
-    if (a.t === "hello") { if (!R.players[from] && a.p) R.players[from] = { pseudo: a.p.pseudo, avatar: a.p.avatar, score: 0, online: true }; return broadcast(); }
+    if (a.t === "hello") { if (!R.players[from] && a.p) R.players[from] = { pseudo: a.p.pseudo, avatar: a.p.avatar, color: a.p.color, score: 0, online: true }; return broadcast(); }
     if (R.game === "course" && a.t === "ans") return courseAnswer(from, a);
     if (R.game === "phrase" && a.t === "sub" && R.phase === "write" && a.round === R.round) { R.subs[from] = cleanSub(a, R.tiles.length); return; } // pas besoin de tout rediffuser
   }
@@ -104,7 +104,7 @@
     const R = M.R; if (!R) return;
     let changed = false;
     for (const [id, meta] of Object.entries(online)) {
-      if (!R.players[id] && R.phase !== "end") { R.players[id] = { pseudo: meta.pseudo, avatar: meta.avatar, score: 0, online: true }; changed = true; }
+      if (!R.players[id] && R.phase !== "end") { R.players[id] = { pseudo: meta.pseudo, avatar: meta.avatar, color: meta.color, score: 0, online: true }; changed = true; }
     }
     for (const [id, p] of Object.entries(R.players)) { const on = !!online[id]; if (p.online !== on) { p.online = on; changed = true; } }
     if (changed) broadcast();
@@ -140,6 +140,7 @@
     if (R.phase !== "q" || a.qi !== R.qi || R.locked.includes(from) || !R.players[from]) return;
     if (a.k === H.correct) { R.players[from].score += 10; return courseReveal(from); }
     R.players[from].score = Math.max(0, R.players[from].score - 5);
+    R.players[from].err = (R.players[from].err || 0) + 1;
     R.locked.push(from);
     broadcast();
     courseCheckAllLocked();
@@ -193,7 +194,7 @@
     const R = M.R; R.roundPts = {};
     for (const [id, sents] of Object.entries(R.subs)) {
       let pts = 0;
-      sents.forEach((s, i) => { if (R.verdicts[id + "|" + i]) pts += s.length * s.length; });
+      sents.forEach((s, i) => { if (R.verdicts[id + "|" + i]) { pts += s.length * s.length; if (R.players[id]) R.players[id].best = Math.max(R.players[id].best || 0, s.length); } });
       R.roundPts[id] = pts;
       if (R.players[id]) R.players[id].score += pts;
     }
@@ -203,7 +204,7 @@
   /* ---------- Début / fin ---------- */
   function startGame(){
     const R = M.R;
-    for (const p of Object.values(R.players)) p.score = 0;
+    for (const p of Object.values(R.players)) { p.score = 0; p.err = 0; p.best = 0; }
     H.used = new Set(); R.qi = 0; R.round = 0;
     if (R.game === "course") courseNext(); else phraseRound();
   }
@@ -219,15 +220,18 @@
     M.localEnd = R.endsIn ? Date.now() + R.endsIn : 0;
     if (R.game === "phrase" && R.phase === "write" && (!prev || prev.phase !== "write" || prev.round !== R.round)) M.my = { sents: [], cur: [] };
     if (R.phase === "end" && prev?.phase !== "end") recordResult(R);
-    if (!M.isHost && !R.players[M.meId] && R.phase !== "end") M.t.send({ t: "act", from: M.meId, a: { t: "hello", p: { pseudo: profile().pseudo, avatar: profile().avatar } } });
+    if (!M.isHost && !R.players[M.meId] && R.phase !== "end") M.t.send({ t: "act", from: M.meId, a: { t: "hello", p: { pseudo: profile().pseudo, avatar: profile().avatar, color: profile().color } } });
     render();
   }
   function recordResult(R){
     const ranks = Object.entries(R.players).sort((a, b) => b[1].score - a[1].score);
     S.multi ??= { played: 0, wins: 0 };
     S.multi.played++;
-    if (ranks[0]?.[0] === M.meId && ranks[0][1].score > 0) S.multi.wins++;
-    markActive(); save();
+    const won = ranks[0]?.[0] === M.meId && ranks[0][1].score > 0, me = R.players[M.meId] || {};
+    if (won) S.multi.wins++;
+    markActive();
+    window.zikaBadges?.onMulti({ game: R.game, won, err: me.err || 0, best: me.best || 0 });
+    save();
   }
 
   function act(a){
@@ -240,7 +244,7 @@
     const me = profile();
     M = { code, isHost, meId: me.id, R: null, ready: false, online: {}, my: { sents: [], cur: [] } };
     H = isHost ? { used: new Set(), ends: 0, timer: null, correct: -1 } : null;
-    M.t = openTransport(code, me.id, { pseudo: me.pseudo, avatar: me.avatar }, {
+    M.t = openTransport(code, me.id, { pseudo: me.pseudo, avatar: me.avatar, color: me.color }, {
       onMsg: msg => {
         if (!M) return;
         if (msg.t === "state" && !M.isHost) { if (!M.R || msg.R.seq > M.R.seq || msg.R.phase !== M.R.phase) applyState(msg.R); }
@@ -251,7 +255,7 @@
       onReady: () => {
         if (isHost) { M.R = R; broadcast(); }
         else {
-          act({ t: "hello", p: { pseudo: me.pseudo, avatar: me.avatar } });
+          act({ t: "hello", p: { pseudo: me.pseudo, avatar: me.avatar, color: me.color } });
           setTimeout(() => { if (M && !M.ready) { M.notFound = true; render(); } }, 5000);
         }
       },
@@ -283,7 +287,7 @@
   function scoreboard(compact){
     return `<div class="m-board ${compact ? "compact" : ""}">${players().map(p => `
       <div class="m-pl ${p.id === M.meId ? "me" : ""} ${p.online ? "" : "off"} ${M.R.locked?.includes(p.id) ? "locked" : ""}">
-        <span class="avatar sm">${esc2(p.avatar)}</span><span class="m-name">${esc2(p.pseudo)}${p.id === M.R.hostId ? ` <small>hôte</small>` : ""}${p.online ? "" : ` <small>parti</small>`}</span>
+        <span class="avatar sm av-${esc2(p.color || "jade")}">${esc2(p.avatar)}</span><span class="m-name">${esc2(p.pseudo)}${p.id === M.R.hostId ? ` <small>hôte</small>` : ""}${p.online ? "" : ` <small>parti</small>`}</span>
         <b>${fmt(p.score)}</b></div>`).join("")}</div>`;
   }
   function header(){
@@ -402,7 +406,7 @@
   function renderJudge(view, R){
     const rows = players().map(p => {
       const sents = R.subs[p.id] || [];
-      return `<section class="panel"><div class="me-line"><span class="avatar sm">${esc2(p.avatar)}</span><b>${esc2(p.pseudo)}</b></div>
+      return `<section class="panel"><div class="me-line"><span class="avatar sm av-${esc2(p.color || "jade")}">${esc2(p.avatar)}</span><b>${esc2(p.pseudo)}</b></div>
         ${sents.length ? sents.map((s, i) => {
           const key = p.id + "|" + i, v = R.verdicts[key];
           return `<div class="m-sent judge ${v === true ? "yes" : v === false ? "no" : ""}">
@@ -430,7 +434,7 @@
     view.innerHTML = `<div class="game">
       ${header()}
       <section class="panel"><h2>Manche ${R.round}</h2>
-        ${players().map(p => `<div class="lb-row ${p.id === M.meId ? "me" : ""}"><span class="lb-rank"></span><span class="avatar sm">${esc2(p.avatar)}</span>
+        ${players().map(p => `<div class="lb-row ${p.id === M.meId ? "me" : ""}"><span class="lb-rank"></span><span class="avatar sm av-${esc2(p.color || "jade")}">${esc2(p.avatar)}</span>
           <span class="lb-name">${esc2(p.pseudo)}</span><span class="lb-score">+${fmt(R.roundPts[p.id] || 0)}</span></div>`).join("")}</section>
       <section class="panel"><h2>Total</h2>${scoreboard()}</section>
       ${M.isHost ? `<button class="btn primary" id="m-next">${last ? "Voir le podium" : "Manche suivante"}</button>` : `<div class="note" style="text-align:center">En attente de la suite…</div>`}
@@ -445,7 +449,7 @@
       <div class="card end">
         <div class="seal">胜</div>
         <div class="qlabel">${R.game === "course" ? "Course" : "Phrases"} · terminée</div>
-        <span class="avatar" style="width:64px;height:64px;font-size:34px">${esc2(win.avatar)}</span>
+        <span class="avatar av-${esc2(win.color || "jade")}" style="width:64px;height:64px;font-size:34px">${esc2(win.avatar)}</span>
         <div class="end-score" style="font-size:36px">${esc2(win.pseudo)}</div>
         <div class="end-rec">${win.id === M.meId ? "Tu as gagné !" : "remporte la partie"}</div>
         <div style="width:100%;max-width:420px">${scoreboard()}</div>
