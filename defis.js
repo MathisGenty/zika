@@ -295,6 +295,7 @@
   function renderDefis(){
     if (G) return renderGame();
     if (window.zikaMulti?.active()) return window.zikaMulti.render();
+    if (window.zikaExam?.active()) return window.zikaExam.render();
     const view = document.getElementById("view"), st = S.settings, R = records();
     const ds = decks(), pool = sourcePool();
     const toneable = pool.filter(c => sylls(c.p).length === [...c.h].length).length;
@@ -302,6 +303,7 @@
     view.innerHTML = `
       <div style="display:flex;flex-direction:column;gap:16px">
       <section class="panel" id="daily"></section>
+      <section class="panel" id="exam-entry"></section>
       <section class="panel" id="multi-entry"></section>
       <section class="panel">
         <h2>Défis</h2>
@@ -334,6 +336,7 @@
     window.renderSocial?.();
     window.zikaMulti?.renderEntry();
     window.zikaBadges?.paintPanel();
+    window.zikaExam?.renderEntry();
   }
 
   /* ---------- Clavier ---------- */

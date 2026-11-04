@@ -17,7 +17,7 @@ const SEED = [["你好","nǐ hǎo","bonjour"],["谢谢","xiè xie","merci"],["�
 const KEY = "zika-v1";
 const DAY = 864e5;
 let S;
-const APP_VERSION="2026-11-02 · 21:30"; // à changer à chaque mise à jour pour vérifier qu'elle est bien arrivée
+const APP_VERSION="2026-11-04 · 10:30"; // à changer à chaque mise à jour pour vérifier qu'elle est bien arrivée
 const DEFAULT_DECK="HSK 1 · départ";
 /* Chaque carte a un champ "mod" (date de dernière modification) et les cartes supprimées
    laissent une trace dans S.deleted : c'est ce qui permet de fusionner deux appareils (sync.js). */

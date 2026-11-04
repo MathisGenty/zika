@@ -20,6 +20,14 @@
     for (const [k, t] of Object.entries(a)) out[k] = out[k] ? Math.min(out[k], t) : t;
     return out;
   }
+  function mergeExams(a = {}, b = {}){
+    const out = {};
+    for (const l of new Set([...Object.keys(a), ...Object.keys(b)])) {
+      const x = a[l] || {}, y = b[l] || {}, newer = (x.lastDate || 0) >= (y.lastDate || 0) ? x : y;
+      out[l] = { best: Math.max(x.best || 0, y.best || 0), tries: Math.max(x.tries || 0, y.tries || 0), last: newer.last, lastDate: newer.lastDate };
+    }
+    return out;
+  }
   function mergeBstats(a = {}, b = {}){
     return { ecPerfect: Math.max(a.ecPerfect || 0, b.ecPerfect || 0), tnPerfect: Math.max(a.tnPerfect || 0, b.tnPerfect || 0),
              dailyDays: [...new Set([...(a.dailyDays || []), ...(b.dailyDays || [])])].sort().slice(-400) };
@@ -62,6 +70,7 @@
     return { cards, deleted: del, settings: lMod >= rMod ? L.settings : R.settings,
              settingsMod: Math.max(lMod, rMod), newLog, records, records2, activity, daily, badges: mergeBadges(L.badges, R.badges), bstats: mergeBstats(L.bstats, R.bstats),
              profile: (L.profile?.mod || 0) >= (R.profile?.mod || 0) ? L.profile : R.profile,
+             exams: mergeExams(L.exams, R.exams),
              multi: (L.multi || R.multi) && { played: Math.max(L.multi?.played || 0, R.multi?.played || 0), wins: Math.max(L.multi?.wins || 0, R.multi?.wins || 0) }, owner: L.owner };
   }
 

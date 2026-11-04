@@ -18,6 +18,7 @@ Elle fonctionne dans le navigateur, s'installe sur l'écran d'accueil du télép
 | `multi.js` | Les parties en direct entre amis : Course et Phrases (Supabase Realtime) |
 | `badges.js` | Les 34 badges, la vitrine, le titre et la couleur du profil |
 | `supabase-badges.sql` | Ajoute au profil public le titre, la vitrine, la couleur et le nombre de badges (à exécuter une fois) |
+| `exam.js` | L'examen HSK : tous les mots d'un niveau, temps limité, note sur 20 |
 | `supabase-amis.sql` | Le script qui crée les tables des amis et des scores (déjà exécuté) |
 | `sw.js` | Le mode hors connexion |
 | `icons/` | Les icônes |
@@ -103,3 +104,11 @@ Il y a 34 badges, sur 4 niveaux : bronze 铜, argent 银, or 金 et jade 玉. Il
 Dans **Défis → Mes badges → Personnaliser mon profil**, tu choisis un titre (le nom d'un badge gagné), une vitrine de 3 badges et la couleur de ton avatar. Tes amis voient ton titre, ta vitrine et ton nombre de badges.
 
 La liste des badges et leurs conditions se trouvent en haut de `badges.js`.
+
+## Examen HSK
+
+**Défis → Examen HSK** pose une question par mot du niveau choisi (150, 147, 298 ou 598 questions). Le sens est tiré au hasard, français → chinois ou chinois → français, avec 4 propositions.
+- Le temps est limité pour tout l'examen, à 8 secondes par mot : 20 min pour HSK 1 et 2, 40 min pour HSK 3, 80 min pour HSK 4. Pour le changer, modifie `SEC_PER_WORD` en haut de `exam.js`.
+- Il n'y a pas de correction pendant l'examen. « Passer » renvoie une question à la fin, « Je ne sais pas » la compte comme fausse.
+- On peut mettre l'examen en pause (le chrono s'arrête) et le reprendre plus tard. L'examen en cours est gardé sur l'appareil.
+- La note finale est sur 20. Les mentions : 12/20 (60 %, le seuil de réussite du HSK) donne « Réussi », 14 « Très bien », 18 « Excellent ». La meilleure note par niveau est synchronisée avec le compte.
