@@ -17,7 +17,7 @@ const SEED = [["你好","nǐ hǎo","bonjour"],["谢谢","xiè xie","merci"],["�
 const KEY = "zika-v1";
 const DAY = 864e5;
 let S;
-const APP_VERSION="2026-11-04 · 10:30"; // à changer à chaque mise à jour pour vérifier qu'elle est bien arrivée
+const APP_VERSION="2026-11-16 · 23:00"; // à changer à chaque mise à jour pour vérifier qu'elle est bien arrivée
 const DEFAULT_DECK="HSK 1 · départ";
 /* Chaque carte a un champ "mod" (date de dernière modification) et les cartes supprimées
    laissent une trace dans S.deleted : c'est ce qui permet de fusionner deux appareils (sync.js). */
@@ -125,11 +125,41 @@ function activeDecks(){const all=decks(); return S.settings.active.filter(d=>all
 function inActive(c){const a=activeDecks(); return !a.length||a.includes(c.deck)}
 function pool(){return S.cards.filter(inActive)}
 
+/* File de révision du jour, dans un ordre aléatoire :
+   - les cartes à réviser (celles dont la date est arrivée selon tes réponses) sont mélangées ;
+   - les nouvelles cartes sont tirées au hasard, en finissant un paquet avant d'entamer le suivant
+     (pour ne pas mélanger HSK 1 et HSK 4 si plusieurs paquets sont sélectionnés) ;
+   - les nouvelles sont ensuite glissées à des places au hasard parmi les révisions. */
+const shuffleArr=a=>{for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
 function buildQueue(){
   const now=Date.now(), P=pool();
-  const due=P.filter(c=>!c.isNew&&c.due<=now).sort((a,b)=>a.due-b.due);
-  const nw=P.filter(c=>c.isNew).slice(0,newLeft());
-  return [...due,...nw].map(c=>c.id);
+  const q=shuffleArr(P.filter(c=>!c.isNew&&c.due<=now));
+  const nwAll=P.filter(c=>c.isNew), n=newLeft(), nw=[];
+  for(const d of [...new Set(nwAll.map(c=>c.deck))]){
+    if(nw.length>=n) break;
+    nw.push(...shuffleArr(nwAll.filter(c=>c.deck===d)).slice(0,n-nw.length));
+  }
+  for(const c of nw) q.splice(Math.floor(Math.random()*(q.length+1)),0,c);
+  return q.map(c=>c.id);
+}
+
+/* ---------- Phrases d'exemple (decks/examples.json : mot → [phrase, pinyin, traduction]) ---------- */
+let EXAMPLES=null, exLoading=false;
+function loadExamples(){
+  if(EXAMPLES||exLoading) return; exLoading=true;
+  fetch("decks/examples.json").then(r=>r.json()).then(d=>{EXAMPLES=d; if(tab==="review"&&flipped) renderReview()}).catch(()=>{exLoading=false});
+}
+function exampleHTML(c){
+  const ex=EXAMPLES?.[c.h]; if(!ex) return "";
+  const [zh,py,fr]=ex, sc=script(), t=sc==="simp"?zh:toTrad(zh), main=sc==="trad"?t:zh;
+  const i=zh.indexOf(c.h), mark=s=>i<0?esc(s):esc(s.slice(0,i))+`<mark>${esc(s.slice(i,i+c.h.length))}</mark>`+esc(s.slice(i+c.h.length));
+  return `<div class="example">
+    <div class="ex-zh">${mark(main)}</div>
+    ${sc==="both"&&t!==zh?`<div class="ex-trad">${mark(t)}</div>`:""}
+    <div class="ex-py">${esc(py)}</div>
+    <div class="ex-fr">${esc(fr)}</div>
+    <button class="sbtn" id="speak-ex" title="Écouter la phrase (touche E)">🔊 Écouter la phrase</button>
+  </div>`;
 }
 
 /* ---------- Audio ---------- */
@@ -198,13 +228,14 @@ function renderReview(){
     bindDeckBar(); return;
   }
   const col=S.settings.tones, f2h=curDir==="f2h";
+  loadExamples();
   let front, back="";
   if(!f2h){
     front=hanziHTML(c.h,c.p,flipped&&col);
-    if(flipped) back=`<div class="pinyin ${col?"":"mono"}">${pinyinHTML(c.p)}</div><div class="meaning">${esc(c.m)}</div>`;
+    if(flipped) back=`<div class="pinyin ${col?"":"mono"}">${pinyinHTML(c.p)}</div><div class="meaning">${esc(c.m)}</div>`+exampleHTML(c);
   } else {
     front=`<div class="meaning big">${esc(c.m)}</div>`;
-    if(flipped) back=hanziHTML(c.h,c.p,col)+`<div class="pinyin ${col?"":"mono"}">${pinyinHTML(c.p)}</div>`;
+    if(flipped) back=hanziHTML(c.h,c.p,col)+`<div class="pinyin ${col?"":"mono"}">${pinyinHTML(c.p)}</div>`+exampleHTML(c);
   }
   const tag=c.isNew?"Nouvelle":c.lapses?`Révision · ${c.lapses} oubli${c.lapses>1?"s":""}`:"Révision";
   view.innerHTML=deckBar()+`
@@ -221,6 +252,7 @@ function renderReview(){
   bindDeckBar();
   $("#flip")?.addEventListener("click",flip);
   $("#speak")?.addEventListener("click",()=>speak(c.h));
+  $("#speak-ex")?.addEventListener("click",()=>speak(EXAMPLES[c.h][0]));
   for(let g=0;g<4;g++) $("#g"+g)?.addEventListener("click",()=>answer(g));
 }
 function flip(){flipped=true; renderReview(); if(curDir==="f2h"){const c=S.cards.find(x=>x.id===queue[0]); if(c&&S.settings.autoplay) speak(c.h)}}
@@ -415,6 +447,7 @@ document.addEventListener("keydown",e=>{
   if(tab!=="review"||/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
   if(e.code==="Space"&&!flipped){e.preventDefault();flip()}
   else if(flipped&&["1","2","3","4"].includes(e.key)) answer(+e.key-1);
+  else if(e.key.toLowerCase()==="e"&&flipped){const c=S.cards.find(x=>x.id===queue[0]); const ex=c&&EXAMPLES?.[c.h]; if(ex) speak(ex[0])}
   else if(e.key.toLowerCase()==="a"){const c=S.cards.find(x=>x.id===queue[0]); if(c&&(flipped||curDir==="h2f")) speak(c.h)}
 });
 for(const k of ["review","defis","cards","settings"]) $("#tab-"+k).addEventListener("click",()=>setTab(k));

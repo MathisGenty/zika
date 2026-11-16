@@ -22,7 +22,7 @@ Elle fonctionne dans le navigateur, s'installe sur l'écran d'accueil du télép
 | `supabase-amis.sql` | Le script qui crée les tables des amis et des scores (déjà exécuté) |
 | `sw.js` | Le mode hors connexion |
 | `icons/` | Les icônes |
-| `decks/` | La bibliothèque de paquets prêts à l'emploi (HSK 1 à 4), et `trad.json` pour la conversion en traditionnel |
+| `decks/` | La bibliothèque de paquets prêts à l'emploi (HSK 1 à 4), `trad.json` pour la conversion en traditionnel et `examples.json` pour les phrases d'exemple |
 
 ## Mise en ligne avec GitHub Pages (une seule fois)
 
@@ -112,3 +112,8 @@ La liste des badges et leurs conditions se trouvent en haut de `badges.js`.
 - Il n'y a pas de correction pendant l'examen. « Passer » renvoie une question à la fin, « Je ne sais pas » la compte comme fausse.
 - On peut mettre l'examen en pause (le chrono s'arrête) et le reprendre plus tard. L'examen en cours est gardé sur l'appareil.
 - La note finale est sur 20. Les mentions : 12/20 (60 %, le seuil de réussite du HSK) donne « Réussi », 14 « Très bien », 18 « Excellent ». La meilleure note par niveau est synchronisée avec le compte.
+
+## Phrases d'exemple et ordre des cartes
+
+- Au dos de chaque carte des paquets HSK 1 à 4, une **phrase d'exemple** montre le mot en contexte, surligné, avec le pinyin, la traduction et un bouton pour l'écouter (touche `E`). Les 1 193 phrases sont dans `decks/examples.json`, au format `mot → [phrase, pinyin, traduction]`. Pour ajouter ou corriger une phrase, il suffit de modifier ce fichier.
+- **Ordre de révision** : les cartes à réviser sont mélangées. Les nouvelles cartes sont tirées au hasard dans un paquet avant de passer au suivant, puis glissées au hasard parmi les révisions. Les intervalles restent ceux décidés par tes réponses.
